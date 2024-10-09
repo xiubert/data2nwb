@@ -113,7 +113,7 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     tifFileList = lib.mat2py.getMatCellArrayOfStr(os.path.join(experimentDir,experiment_mat),varPath = ['tifFileList','stim','name'])
     fileTimeWrite = lib.mat2py.getMatCellArrayOfStr(os.path.join(experimentDir,experiment_mat),varPath = ['tifFileList','stim','date'])
     tifFrameCounts = lib.mat2py.getMatCellArrayOfNum(os.path.join(experimentDir,experiment_mat),varPath = ['tifFileList','stim','nFrames'])
-    treatment = lib.mat2py.getMatCellArrayOfNum(os.path.join(experimentDir,experiment_mat),varPath = ['tifFileList','stim','treatment'])
+    treatment = lib.mat2py.getMatCellArrayOfStr(os.path.join(experimentDir,experiment_mat),varPath = ['tifFileList','stim','treatment'])
     print(list(zip(tifFileList,fileTimeWrite,tifFrameCounts)))
 
     #get tif data
