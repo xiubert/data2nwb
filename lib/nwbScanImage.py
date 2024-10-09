@@ -113,6 +113,7 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     tifFileList = lib.mat2py.getMatCellArrayOfStr(os.path.join(experimentDir,experiment_mat),varPath = ['tifFileList','stim','name'])
     fileTimeWrite = lib.mat2py.getMatCellArrayOfStr(os.path.join(experimentDir,experiment_mat),varPath = ['tifFileList','stim','date'])
     tifFrameCounts = lib.mat2py.getMatCellArrayOfNum(os.path.join(experimentDir,experiment_mat),varPath = ['tifFileList','stim','nFrames'])
+    treatment = lib.mat2py.getMatCellArrayOfNum(os.path.join(experimentDir,experiment_mat),varPath = ['tifFileList','stim','treatment'])
     print(list(zip(tifFileList,fileTimeWrite,tifFrameCounts)))
 
     #get tif data
@@ -178,8 +179,8 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
         data=imgData,
         imaging_plane=imaging_plane,
         unit="normalized amplitude",
-        control_description=list(zip(fileTimeInstantiate,tifFileList,nFrames,fr,fileTimeWrite)),
-        comments="control_description form: (fileTimeInstantiate,file,nFrames,frameRate,fileTimeWrite)",
+        control_description=list(zip(fileTimeInstantiate,tifFileList,nFrames,fr,fileTimeWrite,treatment)),
+        comments="control_description form: (fileTimeInstantiate,file,nFrames,frameRate,fileTimeWrite,treatment)",
         timestamps=timestamps
         )
     
