@@ -43,18 +43,37 @@ def getMatCellArrayOfNum(matPath: str, varPath: list[str]) -> list[float]:
         return numList
     
 
-def getMoCorrShiftParams(moCorrMatPath: str) -> np.array:
+def getMoCorrShiftParams(moCorrMatPath: str, nFrames: list[int] = None, concatenate: bool = False) -> np.array:
     """
     Returns numpy array of xy translation shifts of raw .tif images.
     """
     moCorrData = loadmat(moCorrMatPath)
-    shifts = []
-    for cond in moCorrData['NoRMCorreParams'].dtype.fields:
-        for shift in moCorrData['NoRMCorreParams'][cond][0][0]['shifts'][0][0]['shifts']:
-            shifts.append(np.squeeze(shift[0]))
+    # shifts = []
+    # for cond in moCorrData['NoRMCorreParams'].dtype.fields:
+    #     for shift in moCorrData['NoRMCorreParams'][cond][0][0]['shifts'][0][0]['shifts']:
+    #         shifts.append(np.squeeze(shift[0]))
+    for i,cond in enumerate(moCorrData['NoRMCorreParams'].dtype.fields):
+        if i==0:
+            # unnest
+            shifts = np.stack(moCorrData['NoRMCorreParams'][cond][0][0]['shifts'][0][0]['shifts'].squeeze()).squeeze()
+        else:
+            shifts = np.append(shifts,np.stack(moCorrData['NoRMCorreParams'][cond][0][0]['shifts'][0][0]['shifts'].squeeze()).squeeze(),
+                            axis=0)
+            
     params = moCorrData['NoRMCorreParams'][cond][0][0]['options_nonrigid'][0]
 
-    return np.array(shifts),params
+    if concatenate==True:
+        return shifts
+    
+    cumframes = np.cumsum(nFrames)
+    firstShift = cumframes-nFrames
+    lastShift = cumframes-1
+
+    allshifts = []
+    for start,end in zip(firstShift,lastShift):
+        allshifts.append(shifts[start:end+1])
+
+    return allshifts,params
 
 
 def getROImasks(roiMatPath: str) -> np.array:
@@ -67,9 +86,10 @@ def getROImasks(roiMatPath: str) -> np.array:
 
 
 def getROIfluo(fluoMatPath: str, 
-               varPath: list[str] = ['tifFileList','stim','moCorRawFroi']) -> np.array:
+               varPath: list[str] = ['tifFileList','stim','moCorRawFroi'],
+               concatenate: bool = False):
     """
-    Extract fluorescence traces from tifFileList.
+    Extract motion corrected fluorescence traces from tifFileList.
     Returns allFrames X ROI
     """
     with h5py.File(fluoMatPath, "r") as h5:
@@ -79,10 +99,13 @@ def getROIfluo(fluoMatPath: str,
         references = h5_ref[0]
 
         references = h5['tifFileList']['stim']['moCorRawFroi'][0]
-        arr = np.array(h5[references[0]])
         
+        arr = (np.array(h5[references[0]]) if concatenate else [np.array(h5[references[0]])])
         for ref in references[1:]:
-            arr = np.append(arr,np.array(h5[ref]),0)
+            if concatenate==True:
+                arr = np.append(arr,np.array(h5[ref]),0)
+            else:
+                arr.append(np.array(h5[ref]))
 
     return arr
 
@@ -116,5 +139,30 @@ def getPupilData(pupilMat: str, experimentDir: str, getImgData: bool = False, pu
 
     return pupilData
 
+# todo: split into getMetadata and get pupilImgData so that all of pupil data needn't be in memory.
+def getPupilDataProcessed(pupilMatPath: str, pupilFrameRate: float = 10):
+    """
+    Helper to grab relevant pupil data from experiment dir.
+    """
+    getNestedStructData = lambda x: x[0][0]
+    pupilMatData = loadmat(pupilMatPath)
+
+    pupilDataProcessed = {
+        'pupilFrameFiles': list(map(getNestedStructData,pupilMatData['pulsePupilLegend2P'][:]['pupilFrameFile'])),
+        'pupilRadius': list(map(getNestedStructData,pupilMatData['pulsePupilLegend2P'][:]['pupilRad'])),
+        'DeepLabCutModel': list(map(getNestedStructData,pupilMatData['pulsePupilLegend2P'][:]['model'])),
+        'frameRate': pupilFrameRate
+    }
+
+    return pupilDataProcessed
+
+
+def getPupilImg(pupilMatPath: str) -> np.array:
+    """
+    Helper to grab pupil img data from save .mat file containing img frames.
+    """
+    pupilImgData = loadmat(pupilMatPath)['pupilFrames']
+
+    return np.transpose(pupilImgData, (2, 0, 1))
 
 

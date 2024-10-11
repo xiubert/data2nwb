@@ -10,7 +10,8 @@ from roiextractors.extractors.tiffimagingextractors.scanimagetiff_utils import (
             parse_metadata,
         )
 
-def getTifData(tifFileList: list[str], tifDirectory: str, getMetadata: bool = True):
+# todo: split into getMetadata and getImgData so as to not need a big memory pool for img var
+def getTifData(tifFileList: list[str], tifDirectory: str, concatenate: bool = True, getMetadata: bool = True):
     """
     Grabs .tif image data as well as frame rate, file instantiation time (creation time), 
     and frame number from metadata.
@@ -22,11 +23,18 @@ def getTifData(tifFileList: list[str], tifDirectory: str, getMetadata: bool = Tr
         fr = []
         fileTimeInstantiate = []
         nFrames = []
+    
+    if concatenate==False:
+        imgData = []
+    
     for i,tif in enumerate(tifFileList):
-        if i==0:
-            imgData = ScanImageTiffReader(os.path.join(tifDirectory,tif)).data()
+        if concatenate==True:
+            if i==0:
+                imgData = ScanImageTiffReader(os.path.join(tifDirectory,tif)).data()
+            else:
+                imgData = np.append(imgData,ScanImageTiffReader(os.path.join(tifDirectory,tif)).data(),0)
         else:
-            imgData = np.append(imgData,ScanImageTiffReader(os.path.join(tifDirectory,tif)).data(),0)
+            imgData.append(ScanImageTiffReader(os.path.join(tifDirectory,tif)).data())
         
         if getMetadata:
             image_metadata = extract_extra_metadata(file_path=os.path.join(tifDirectory,tif))
@@ -35,11 +43,40 @@ def getTifData(tifFileList: list[str], tifDirectory: str, getMetadata: bool = Tr
             fr.append(extraMeta['sampling_frequency'])
             nFrames.append(extraMeta['frames_per_slice'])
 
-    print(np.shape(imgData))
+    # print(np.shape(imgData))
     if getMetadata:
         return imgData,fileTimeInstantiate,nFrames,fr
     return imgData
 
+
+def getSItifTime(tifFile: str) -> datetime:
+    image_metadata = extract_extra_metadata(file_path=tifFile)
+    fileTimeInstantiate = image_metadata['epoch']
+    return parse_datetime_string(fileTimeInstantiate)
+
+
+def getSItifData(tifFile: str, getMetadata: bool = True):
+    """
+    Grabs .tif metadata as including frame rate, file instantiation time (creation time), 
+    and frame number from ScanImage .tif file list.
+
+    tifFileList: list of .tif files
+    tifDirectory: path to directory containing .tif files
+    """
+    imgData = ScanImageTiffReader(tifFile).data()
+
+    if getMetadata:
+        image_metadata = extract_extra_metadata(file_path=tifFile)
+        fileTimeInstantiate = parse_datetime_string(image_metadata['epoch'])
+        extraMeta = parse_metadata(image_metadata)
+        frameRate = extraMeta['sampling_frequency']
+        nFrames = extraMeta['frames_per_slice']
+    
+        return imgData,fileTimeInstantiate,nFrames,frameRate
+    
+    return imgData
+
+    
 
 def parse_datetime_string(date_str: str) -> datetime:
     """
@@ -63,6 +100,13 @@ def parse_datetime_string(date_str: str) -> datetime:
     return dt
 
 
+def secMicroSec2sec(datetime: datetime):
+    """
+    Returns seconds from datetime object split into seconds and microseconds
+    """
+    return datetime.seconds+datetime.microseconds/1e6
+
+
 def filetime2secTimestamp(fileInstantiateTime: list[str], frameCounts: list[int], frameRates: list[float]):
     """
     Converts file instantiation times (from Scanimage .tif metadata ['epoch']) 
@@ -80,4 +124,4 @@ def filetime2secTimestamp(fileInstantiateTime: list[str], frameCounts: list[int]
     for start,fs,framect in zip(starts,frameRates,frameCounts):
         timestamps.extend((np.arange(framect)/fs)+start)
     
-    return timestamps,date_times
+    return timestamps,date_times,starts
