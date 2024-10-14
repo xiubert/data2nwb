@@ -88,6 +88,16 @@ def parse_datetime_string(date_str: str) -> datetime:
     date_list = [float(x) for x in date_str.split(',')]
     
     # Convert the list into a datetime object
+    dt = parse_datetime_list(date_list)
+
+    return dt
+
+
+def parse_datetime_list(date_list: list[float]) -> datetime:
+    """
+    Parse date list from ScanImage .tif metadata ('epoch') and convert it to a datetime object.
+    """
+    # Convert the list into a datetime object
     dt = datetime(
         year=int(date_list[0]),
         month=int(date_list[1]),
@@ -98,6 +108,7 @@ def parse_datetime_string(date_str: str) -> datetime:
         microsecond=int((date_list[5] % 1) * 1_000_000)  # Fractional seconds to microseconds
     )
     return dt
+
 
 
 def secMicroSec2sec(datetime: datetime):

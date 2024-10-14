@@ -6,6 +6,7 @@ import h5py
 import numpy as np
 from scipy.io import loadmat
 import os
+import lib.tifExtract
 
 def getMatCellArrayOfStr(matPath: str, varPath: list[str]) -> list[str]:
     """
@@ -18,11 +19,11 @@ def getMatCellArrayOfStr(matPath: str, varPath: list[str]) -> list[str]:
         for key in varPath:
             h5_ref = h5_ref[key]
 
-        my_string_list = []
+        string_list = []
         references = h5_ref[0]
         for r in references:
-            my_string_list.append("".join(chr(c.item()) for c in h5[r][:]))
-    return my_string_list
+            string_list.append("".join(chr(c.item()) for c in h5[r][:]))
+    return string_list
 
 
 def getMatCellArrayOfNum(matPath: str, varPath: list[str]) -> list[float]:
@@ -164,5 +165,76 @@ def getPupilImg(pupilMatPath: str) -> np.array:
     pupilImgData = loadmat(pupilMatPath)['pupilFrames']
 
     return np.transpose(pupilImgData, (2, 0, 1))
+
+
+def getPulses(tif: str, tifType: str) -> dict:
+    mat = loadmat(tif.replace('.tif','_Pulses.mat'))
+
+    pulseParams,pulse = {},{}
+    pulseParams['traceAcqTime'] = lib.tifExtract.parse_datetime_list(mat['params'][0]['acquisitionStartTime'][0][0])
+    pulseParams['stimDelay'] = mat['params'][0]['stimDelay'][0][0][0]
+    pulseParams['ISI'] = mat['params'][0]['ISI'][0][0][0]
+
+    if tifType=='stim':
+        pulse['pulseSet'] = mat['pulse'][0]['pulseset'][0][0]
+        pulse['pulseName'] = mat['pulse'][0]['pulsename'][0][0]
+        pulse['xsg'] = mat['pulse'][0]['curXSG'][0][0].split('\\')[-1]
+    elif tifType=='map':
+        pulse['pulseSet'] = np.concatenate(np.squeeze(mat['pulse'][0]['pulseset']))
+        pulse['pulseName'] = np.concatenate(np.squeeze(mat['pulse'][0]['pulsename']))
+        pulse['xsg'] = list(map(lambda x: x.split('\\')[-1],np.concatenate(np.squeeze(mat['pulse'][0]['curXSG']))))
+    
+    return pulseParams,pulse
+
+
+def getTifTypes(tifFileListMatPath: str) -> list[str]:
+    """
+    Returns available tif types from tifFileList mat file.
+    """
+    with h5py.File(tifFileListMatPath, "r") as h5:
+        return list(h5['tifFileList'].keys())
+    
+
+def getTifList(dataPath: str, experimentID: str, tifListMatFilename: str):
+    """
+    Gets tif list, frame counts, and associated treatment from tifFileList.mat file.
+    """
+    tifListMatPath = os.path.join(dataPath,experimentID,tifListMatFilename)
+    tifTypes = getTifTypes(tifListMatPath)
+
+    tifList, tifTypeList, nFrames, treatments = [], [], [], []
+
+    for tifType in tifTypes:
+        print(tifType)
+        tifs = getMatCellArrayOfStr(tifListMatPath,varPath = ['tifFileList',tifType,'name'])
+        treatment = getMatCellArrayOfStr(tifListMatPath,varPath = ['tifFileList',tifType,'treatment'])
+        nFrame = getMatCellArrayOfNum(tifListMatPath,varPath = ['tifFileList',tifType,'nFrames'])
+
+        tifList.extend(tifs)
+        tifTypeList.extend([tifType]*len(tifs))
+        nFrames.extend(nFrame)
+        treatments.extend(treatment)
+    
+    return tifList, tifTypeList, nFrames, treatments
+
+
+def getTifPulses(dataPath: str, experimentID: str, tifList: list[str], tifTypeList: list[str]):
+    """
+    Gets associated .tif pulse data.
+    """
+    stimDelays, ISIs, pulseNames, pulseSets, xsg = [],[],[],[],[]
+
+    for tif,tifType in zip(tifList,tifTypeList):
+        pulseParams,pulse = getPulses(os.path.join(dataPath,experimentID,tif),tifType)
+        pulseSet,pulseName,x = list(pulse.values())
+
+        xsg.append(x)
+        pulseNames.append(pulseName)
+        pulseSets.append((np.unique(pulseSet)[0] if len(np.unique(pulseSet))==1 else pulseSet))
+        ISIs.append(pulseParams['ISI'])
+        stimDelays.append(pulseParams['stimDelay'])
+        
+    return stimDelays, ISIs, pulseNames, pulseSets, xsg
+    
 
 

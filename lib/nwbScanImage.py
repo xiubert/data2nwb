@@ -106,7 +106,7 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     """
     #%% set directories
     experimentDir = os.path.join(dataPath,experimentID)
-    experiment_mat = f"{experimentID}_anmlROI_stimTable.mat"
+    # experiment_mat = f"{experimentID}_anmlROI_stimTable.mat"
     moCorrMat = f"{experimentID}_NoRMCorreParams.mat"
     fluorescenceMat = f"{experimentID}_tifFileList.mat"
 
@@ -114,12 +114,15 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
 
     #%% get tif file list
     # get tif creation date, end write time, and frame counts
-    tifFileList = lib.mat2py.getMatCellArrayOfStr(os.path.join(experimentDir,experiment_mat),
-                                                  varPath = ['tifFileList','stim','name'])
-    tifFrameCounts = lib.mat2py.getMatCellArrayOfNum(os.path.join(experimentDir,experiment_mat),
-                                                     varPath = ['tifFileList','stim','nFrames'])
-    treatment = lib.mat2py.getMatCellArrayOfStr(os.path.join(experimentDir,experiment_mat),
-                                                varPath = ['tifFileList','stim','treatment'])
+    # tifFileList = lib.mat2py.getMatCellArrayOfStr(os.path.join(experimentDir,experiment_mat),
+    #                                               varPath = ['tifFileList','stim','name'])
+    # tifFrameCounts = lib.mat2py.getMatCellArrayOfNum(os.path.join(experimentDir,experiment_mat),
+    #                                                  varPath = ['tifFileList','stim','nFrames'])
+    # treatment = lib.mat2py.getMatCellArrayOfStr(os.path.join(experimentDir,experiment_mat),
+    #                                             varPath = ['tifFileList','stim','treatment'])
+    tifFileList, tifTypeList, tifFrameCounts, treatment = lib.mat2py.getTifList(
+        dataPath,experimentID,f"{experimentID}_tifFileList.mat")
+
     
     # ROI mat ([experimentID]_moCorrROI_all.mat) will always end in _all.mat if treatment is 'none'.
     # If treatment (eg preZX1 and postZX1), there may be either one ROI mat for the whole session (ending in _all.mat) 
@@ -332,23 +335,43 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
 
 
     # add sound stimulus data via DynamicTable
-    pulseNames = lib.mat2py.getMatCellArrayOfStr(os.path.join(experimentDir,experiment_mat),['pulseLegend2P','pulseName'])
-    pulseSets = lib.mat2py.getMatCellArrayOfStr(os.path.join(experimentDir,experiment_mat),['pulseLegend2P','pulseSet'])
-    tifPulse = lib.mat2py.getMatCellArrayOfStr(os.path.join(experimentDir,experiment_mat),['pulseLegend2P','tif'])
-    pulseNames, pulseSets = zip(*[(pulseName,pulseSet) for t,pulseName,pulseSet in zip(tifPulse,pulseNames,pulseSets) if t in tifFileList])
+    # pulseNames = lib.mat2py.getMatCellArrayOfStr(os.path.join(experimentDir,experiment_mat),['pulseLegend2P','pulseName'])
+    # pulseSets = lib.mat2py.getMatCellArrayOfStr(os.path.join(experimentDir,experiment_mat),['pulseLegend2P','pulseSet'])
+    # tifPulse = lib.mat2py.getMatCellArrayOfStr(os.path.join(experimentDir,experiment_mat),['pulseLegend2P','tif'])
+    # pulseNames, pulseSets = zip(*[(pulseName,pulseSet) for t,pulseName,pulseSet in zip(tifPulse,pulseNames,pulseSets) if t in tifFileList])
+    
+    # stimData = {
+    #     'file': ('name of .tif file',tifFileList),
+    #     'fileTimeInstantiate': ('time .tif file was instantiated/created',
+    #                             [dt.strftime('%Y-%m-%d %H:%M:%S.%f') for dt in fileTimesInstantiate]),
+    #     'starting_time': ('starting time of .tif in seconds from first .tif',starts),
+    #     'nFrames': ('number of frames in .tif file',nFrames),
+    #     'frameRate': ('frame rate of .tif file',frameRates),
+    #     'pulseNames': ('sound stimulation pulse name',pulseNames),
+    #     'pulseSets': ('sound stimulation pulse set',pulseSets),
+    #     'treatment': ('treatment',treatment)
+    # }
+    stimDelays, ISIs, pulseNames, pulseSets, xsg = lib.mat2py.getTifPulses(
+        dataPath,experimentID,tifFileList,tifTypeList)
     
     stimData = {
-        'file': ('name of .tif file',tifFileList),
-        'fileTimeInstantiate': ('time .tif file was instantiated/created',
-                                [dt.strftime('%Y-%m-%d %H:%M:%S.%f') for dt in fileTimesInstantiate]),
-        'starting_time': ('starting time of .tif in seconds from first .tif',starts),
-        'nFrames': ('number of frames in .tif file',nFrames),
-        'frameRate': ('frame rate of .tif file',frameRates),
-        'pulseNames': ('sound stimulation pulse name',pulseNames),
-        'pulseSets': ('sound stimulation pulse set',pulseSets),
-        'treatment': ('treatment',treatment)
+    # 'fileTimeInstantiate': ('time .tif file was instantiated/created',
+    #                         [dt.strftime('%d-%b-%Y %H:%M:%S.%f') for dt in fileTimesInstantiate]),
+    'file': ('name of .tif file',tifFileList),
+    'fileTimeInstantiate': ('time .tif file was instantiated/created',
+                        [dt.strftime('%Y-%m-%d %H:%M:%S.%f') for dt in fileTimesInstantiate]),
+    'starting_time': ('starting time of .tif in seconds from first .tif',starts),
+    'type': ('whether stim or mapping type', tifTypeList),
+    'nFrames': ('number of frames in .tif file',nFrames),
+    'frameRate': ('frame rate of .tif file',frameRates),
+    'treatment': ('treatment',treatment),
+    'pulseNames': ('sound stimulation pulse name',pulseNames),
+    'pulseSets': ('sound stimulation pulse set',pulseSets),
+    'ISI': ('ISI between pulses in seconds', ISIs),
+    'stimDelay': ('delay to start of pulses in seconds', stimDelays),
+    'xsg': ('associated .xsg file storing raw pulse data',xsg)
     }
-
+    
     cols = []
     for col,v in stimData.items():
         cols.append(
@@ -379,21 +402,28 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
         
         # add pupil radius split by tif file
         pupilDataProcessed = lib.mat2py.getPupilDataProcessed(os.path.join(experimentDir,pupilMat))
-        pupilFrameFiles,pupilRadius = zip(*[(f,r) for f,r in zip(pupilDataProcessed['pupilFrameFiles'],pupilDataProcessed['pupilRadius']) 
-            if f.replace('_pupilFrames.mat','.tif') in tifFileList])
+
+        # keep only those in tifList
+        pupilTifIDs,pupilFrameFiles = zip(*[(i,t.replace('.tif','_pupilFrames.mat')) for i,t in enumerate(tifFileList) 
+                                   if t.replace('.tif','_pupilFrames.mat') in pupilDataProcessed['pupilFrameFiles']])
+        pupilRadii = [r for r,p in zip(pupilDataProcessed['pupilRadius'],pupilDataProcessed['pupilFrameFiles']) 
+                    if p in pupilFrameFiles]
+        
+        # pupilFrameFiles,pupilRadius = zip(*[(f,r) for f,r in zip(pupilDataProcessed['pupilFrameFiles'],pupilDataProcessed['pupilRadius']) 
+        #     if f.replace('_pupilFrames.mat','.tif') in tifFileList])
 
         pupil_radii = []
 
-        for i,pupilFrameFile in enumerate(pupilFrameFiles):
+        for pupilTifID,pupilFrameFile,pupilRadius in zip(pupilTifIDs,pupilFrameFiles,pupilRadii):
             pupil_radii.append(
                 TimeSeries(
-                    name=f"pupil_radius_{i:03}",
+                    name=f"pupil_radius_{pupilTifID:03}",
                     description=f"Pupil radius extracted from the video of the right eye for TwoPhotonSeries_{i:03}",
-                    data=pupilRadius[i],
+                    data=pupilRadius,
                     rate=float(pupilDataProcessed['frameRate']),
-                    starting_time=starts[i],
+                    starting_time=starts[pupilTifID],
                     unit="na",
-                    comments=f"pupilFrameFile: {pupilFrameFile}, associated .tif file: {tifFileList[i]}"
+                    comments=f"pupilFrameFile: {pupilFrameFile}, associated .tif file: {tifFileList[pupilTifID]}"
                 )
             )
 
@@ -404,16 +434,16 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
         # add pupil video
         pupilVideoSeries = []
 
-        for i,pupilFrameFile in enumerate(pupilFrameFiles):
+        for pupilTifID,pupilFrameFile in zip(pupilTifIDs,pupilFrameFiles):
             pupilVideoSeries.append(
                 ImageSeries(
-                    name=f"pupil_video_{i:03}",
-                    description=f"Pupil video of the right eye for TwoPhotonSeries_{i:03}",
+                    name=f"pupil_video_{pupilTifID:03}",
+                    description=f"Pupil video of the right eye for TwoPhotonSeries_{pupilTifID:03}",
                     data=lib.mat2py.getPupilImg(os.path.join(experimentDir,pupilFrameFile)),
                     rate=float(pupilDataProcessed['frameRate']),
-                    starting_time=starts[i],
+                    starting_time=starts[pupilTifID],
                     unit="na",
-                    comments=f"pupilFrameFile: {pupilFrameFile}, associated .tif file: {tifFileList[i]}"
+                    comments=f"pupilFrameFile: {pupilFrameFile}, associated .tif file: {tifFileList[pupilTifID]}"
                 )
             )
         behavior_module.add(pupilVideoSeries)
