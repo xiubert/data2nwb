@@ -8,6 +8,17 @@ from scipy.io import loadmat
 import os
 import lib.tifExtract
 
+
+def getH5stringList(h5references,h5file):
+    """
+    helper for grabbing a list of strings from list of h5 references.
+    """
+    string_list = []
+    for r in h5references:
+        string_list.append("".join(chr(c.item()) for c in h5file[r][:]))
+    return string_list
+
+
 def getMatCellArrayOfStr(matPath: str, varPath: list[str]) -> list[str]:
     """
     Returns list of strings from cell array of strings in matlab.
@@ -19,10 +30,8 @@ def getMatCellArrayOfStr(matPath: str, varPath: list[str]) -> list[str]:
         for key in varPath:
             h5_ref = h5_ref[key]
 
-        string_list = []
         references = h5_ref[0]
-        for r in references:
-            string_list.append("".join(chr(c.item()) for c in h5[r][:]))
+        string_list = getH5stringList(references,h5)
     return string_list
 
 
@@ -44,7 +53,7 @@ def getMatCellArrayOfNum(matPath: str, varPath: list[str]) -> list[float]:
         return numList
     
 
-def getMoCorrShiftParams(moCorrMatPath: str, nFrames: list[int] = None, concatenate: bool = False) -> np.array:
+def getMoCorrShiftParams(moCorrMatPath: str, nFrames: list[int] = None, concatenate: bool = False) -> np.ndarray:
     """
     Returns numpy array of xy translation shifts of raw .tif images.
     """
@@ -77,38 +86,42 @@ def getMoCorrShiftParams(moCorrMatPath: str, nFrames: list[int] = None, concaten
     return allshifts,params
 
 
-def getROImasks(roiMatPath: str) -> np.array:
+def getROImasks(roiMatPath: str) -> np.ndarray:
     """
     Returns 1xNumberOfROI array of ROI image masks provided path to experiment .mat file containing
     ROIs drawn on motion corrected data.
     """
     roiData = loadmat(roiMatPath)
-    return roiData['moCorROI'][0]['mask']
+    masks = roiData['moCorROI'][0]['mask']
+    IDs = np.concatenate(roiData['moCorROI'][0]['ID']).astype(int)
+
+    return IDs,masks
 
 
 def getROIfluo(fluoMatPath: str, 
-               varPath: list[str] = ['tifFileList','stim','moCorRawFroi'],
-               concatenate: bool = False):
+               concatenate: bool = False) -> tuple[list[str],list[np.ndarray]]:
     """
     Extract motion corrected fluorescence traces from tifFileList.
-    Returns allFrames X ROI
+    Returns corresponding tif, allFrames X ROI
     """
     with h5py.File(fluoMatPath, "r") as h5:
-        h5_ref = h5
-        for key in varPath:
-            h5_ref = h5_ref[key]
-        references = h5_ref[0]
+        tifTypes = list(h5['tifFileList'].keys())
 
-        references = h5['tifFileList']['stim']['moCorRawFroi'][0]
+        tifs,responses = [],[]
+        for tifType in tifTypes:
+            tifNameRefs = h5['tifFileList'][tifType]['name'][0]
+            tifs.extend(lib.mat2py.getH5stringList(tifNameRefs,h5))
         
-        arr = (np.array(h5[references[0]]) if concatenate else [np.array(h5[references[0]])])
-        for ref in references[1:]:
-            if concatenate==True:
-                arr = np.append(arr,np.array(h5[ref]),0)
-            else:
-                arr.append(np.array(h5[ref]))
+            responseRefs = h5['tifFileList'][tifType]['moCorRawFroi'][0]
+            arr = (np.array(h5[responseRefs[0]]) if concatenate else [np.array(h5[responseRefs[0]])])
+            for ref in responseRefs[1:]:
+                if concatenate==True:
+                    arr = np.append(arr,np.array(h5[ref]),0)
+                else:
+                    arr.append(np.array(h5[ref]))
+            responses.extend(arr)
 
-    return arr
+    return tifs,responses
 
 
 
@@ -158,7 +171,7 @@ def getPupilDataProcessed(pupilMatPath: str, pupilFrameRate: float = 10):
     return pupilDataProcessed
 
 
-def getPupilImg(pupilMatPath: str) -> np.array:
+def getPupilImg(pupilMatPath: str) -> np.ndarray:
     """
     Helper to grab pupil img data from save .mat file containing img frames.
     """
@@ -205,17 +218,18 @@ def getTifList(dataPath: str, experimentID: str, tifListMatFilename: str):
     tifList, tifTypeList, nFrames, treatments = [], [], [], []
 
     for tifType in tifTypes:
-        print(tifType)
+        print(f"recording includes: {tifType}")
         tifs = getMatCellArrayOfStr(tifListMatPath,varPath = ['tifFileList',tifType,'name'])
         treatment = getMatCellArrayOfStr(tifListMatPath,varPath = ['tifFileList',tifType,'treatment'])
         nFrame = getMatCellArrayOfNum(tifListMatPath,varPath = ['tifFileList',tifType,'nFrames'])
-
+        if tifType=='map':
+            treatment = [t.replace('BFmap','').strip() for t in treatment]
         tifList.extend(tifs)
         tifTypeList.extend([tifType]*len(tifs))
         nFrames.extend(nFrame)
         treatments.extend(treatment)
     
-    return tifList, tifTypeList, nFrames, treatments
+    return tifList, tifTypeList, treatments, nFrames
 
 
 def getTifPulses(dataPath: str, experimentID: str, tifList: list[str], tifTypeList: list[str]):
