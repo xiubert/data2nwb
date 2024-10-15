@@ -18,7 +18,7 @@ from pynwb.ophys import (
     TwoPhotonSeries,
 )
 from pynwb.behavior import PupilTracking
-from hdmf.common import DynamicTable
+from hdmf.common import VectorData, DynamicTable
 
 
 """
@@ -330,18 +330,31 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
 
 
     # add sound stimulus data via DynamicTable
-    stimDelays, ISIs, pulseNames, pulseSets, xsg = lib.mat2py.getTifPulses(
+    pulseTifs,pulseTifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg = lib.mat2py.getTifPulses(
         dataPath,experimentID,tifFileList,tifTypeList)
     
+    # extend remaining params
+    pulseTwoPidx,pulseFileTimesInstantiatePulse,pulseStarts,pulseNframes = [],[],[],[]
+    pulseFrameRates,pulseTreatment = [],[]
+    for tif in pulseTifs:
+        tifIDX = tifFileList.index(tif)
+        pulseTwoPidx.append(f"TwoPhotonSeries_{tifIDX:03}")
+        pulseFileTimesInstantiatePulse.append(fileTimesInstantiate[tifIDX].strftime('%Y-%m-%d %H:%M:%S.%f'))
+        pulseStarts.append(starts[tifIDX])
+        pulseNframes.append(nFrames[tifIDX])
+        pulseFrameRates.append(frameRates[tifIDX])
+        pulseTreatment.append(treatment[tifIDX])
+        
     stimData = {
-                'file': ('name of .tif file',tifFileList),
+                'file': ('name of .tif file',pulseTifs),
+                'TwoPhotonSeries': ('TwoPhotonSeries index', pulseTwoPidx),
                 'fileTimeInstantiate': ('time .tif file was instantiated/created',
-                                    [dt.strftime('%Y-%m-%d %H:%M:%S.%f') for dt in fileTimesInstantiate]),
-                'starting_time': ('starting time of .tif in seconds from first .tif',starts),
-                'type': ('whether stim or mapping type', tifTypeList),
-                'nFrames': ('number of frames in .tif file',nFrames),
-                'frameRate': ('frame rate of .tif file',frameRates),
-                'treatment': ('treatment',treatment),
+                                    pulseFileTimesInstantiatePulse),
+                'starting_time': ('starting time of .tif in seconds from first .tif',pulseStarts),
+                'type': ('whether stim or mapping type', pulseTifTypes),
+                'nFrames': ('number of frames in .tif file',pulseNframes),
+                'frameRate': ('frame rate of .tif file',pulseFrameRates),
+                'treatment': ('treatment',pulseTreatment),
                 'pulseNames': ('sound stimulation pulse name',pulseNames),
                 'pulseSets': ('sound stimulation pulse set',pulseSets),
                 'ISI': ('ISI between pulses in seconds', ISIs),
@@ -349,19 +362,20 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
                 'xsg': ('associated .xsg file storing raw pulse data',xsg)
                 }
         
+    cols = []
+    for col,v in stimData.items():
+        cols.append(
+                VectorData(
+                name=col,
+                description=v[0],
+                data=v[1],
+            )
+        )
     stim_table = DynamicTable(
         name='stim param table',
-        description='links sound stim parameters to .tif files',
-        id=list(range(len(tifFileList)))
+        description='Maps sound stim parameters to .tif files',
+        columns=cols,
     )
-    for col,v in stimData.items():
-        # add nested cols as ragged arrays (xsg and pulseNames)
-        stim_table.add_column(
-            name=col,
-            description=v[0],
-            index=(True if (col=='xsg' or col=='pulseNames') else False),
-            data=v[1]
-        )
 
     nwbfile.add_stimulus(stim_table)
     print('added stim table data')

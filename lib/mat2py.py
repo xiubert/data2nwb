@@ -236,19 +236,36 @@ def getTifPulses(dataPath: str, experimentID: str, tifList: list[str], tifTypeLi
     """
     Gets associated .tif pulse data.
     """
+    tifs, tifTypes = [],[]
     stimDelays, ISIs, pulseNames, pulseSets, xsg = [],[],[],[],[]
 
     for tif,tifType in zip(tifList,tifTypeList):
         pulseParams,pulse = getPulses(os.path.join(dataPath,experimentID,tif),tifType)
         pulseSet,pulseName,x = list(pulse.values())
 
-        xsg.append(x)
-        pulseNames.append(pulseName)
-        pulseSets.append((np.unique(pulseSet)[0] if len(np.unique(pulseSet))==1 else pulseSet))
-        ISIs.append(pulseParams['ISI'])
-        stimDelays.append(pulseParams['stimDelay'])
+        if tifType=='map':
+            tif,tifType,ISI,stimDelay = zip(*[(tif,
+                                   tifType,
+                                   pulseParams['stimDelay'],
+                                   pulseParams['ISI']) for _ in pulseName])
+            xsg.extend(x)
+            pulseNames.extend(pulseName)
+            pulseSets.extend(pulseSet)
+            ISIs.extend(ISI)
+            stimDelays.extend(stimDelay)
+            tifs.extend(tif)
+            tifTypes.extend(tifType)
+
+        else:
+            tifs.append(tif)
+            tifTypes.append(tifType)
+            xsg.append(x)
+            pulseNames.append(pulseName)
+            pulseSets.append((np.unique(pulseSet)[0] if len(np.unique(pulseSet))==1 else pulseSet))
+            ISIs.append(pulseParams['ISI'])
+            stimDelays.append(pulseParams['stimDelay'])
         
-    return stimDelays, ISIs, pulseNames, pulseSets, xsg
+    return tifs, tifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg
     
 
 
