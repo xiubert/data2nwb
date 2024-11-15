@@ -19,7 +19,7 @@ from pynwb.ophys import (
 )
 from pynwb.behavior import PupilTracking
 from hdmf.common import VectorData, DynamicTable
-
+from hdmf.backends.hdf5.h5_utils import H5DataIO
 
 """
 Functions for generating standard NWB files for ScanImage experiments.
@@ -61,6 +61,15 @@ PARAMS_imagingPC = {
 def writeNWB(outputPath: str, nwbfile: NWBFile, overWrite: bool = True) -> bool:
     """
     Simple helper to write NWB file.
+
+    Args:
+        outputPath (str):  File path for desired NWB output file.
+        nwbfile: NWB file object to be written to disk.
+        overWrite (bool): Boolean to indicate whether or not 
+                          file should be overwriten if it exists
+
+    Returns:
+        bool: True if completed without error.
     """
     if os.path.exists(outputPath):
         if overWrite==True:
@@ -209,7 +218,7 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
         two_p_ser = TwoPhotonSeries(
             name=f"TwoPhotonSeries_{i:03}",
             description="Raw 2P data",
-            data=imgData,
+            data=H5DataIO(data=imgData, compression=True),
             imaging_plane=imgPlane[tifROIset[i]],
             rate=frameRate,
             starting_time=start,
@@ -243,7 +252,7 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
         corrected = ImageSeries(
             name="corrected",  # this must be named "corrected"
             description=f"A motion corrected image stack for acquisition {i:03}",
-            data=imgData,
+            data=H5DataIO(data=imgData, compression=True),
             unit="na",
             format="raw",
             comments=f"corrected file: {tif}",
@@ -425,7 +434,7 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
                 ImageSeries(
                     name=f"pupil_video_{pupilTifID:03}",
                     description=f"Pupil video of the right eye for TwoPhotonSeries_{pupilTifID:03}",
-                    data=lib.mat2py.getPupilImg(os.path.join(experimentDir,pupilFrameFile)),
+                    data=H5DataIO(data=lib.mat2py.getPupilImg(os.path.join(experimentDir,pupilFrameFile)), compression=True),
                     rate=float(pupilDataProcessed['frameRate']),
                     starting_time=starts[pupilTifID],
                     unit="na",
