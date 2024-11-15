@@ -7,6 +7,7 @@ import lib.tifExtract
 import numpy as np
 from uuid import uuid4
 from pynwb import NWBHDF5IO, NWBFile, TimeSeries
+from pynwb.file import Subject
 from pynwb.image import ImageSeries
 from pynwb.ophys import (
     CorrectedImageStack,
@@ -32,7 +33,7 @@ PARAMS_nwbFile = {
 }
 
 PARAMS_nwbFilePC = {
-    'experimenter': 'Patrick Cody',
+    'experimenter': 'Cody, Patrick A',
     'lab': 'Tzounopoulos Lab',
     'institution': 'University of Pittsburgh',
     'related_publications': 'doi: 10.1523/JNEUROSCI.0939-23.2024'
@@ -56,6 +57,35 @@ PARAMS_imagingPC = {
     'imagingPlane_originCoords': [-2.0, 4.25, 2.0],
     'imagingPlane_originCoordsUnit': 'meters'
 }
+
+def setSubject(subject_id: str, age: str, species: str, 
+               sex: str, genotype: str,
+               description: str):
+    """
+    Simple helper function to set experiment subject.
+
+    age: ISO 8601 Duration format, e.g., "P90D" for 90 days old
+    species: The formal Latin binomial nomenclature, e.g., "Mus musculus", "Homo sapiens"
+    sex: Single letter abbreviation, e.g., "F" (female), "M" (male), "U" (unknown), and "O" (other)
+    """
+    # subject = Subject(
+    #     subject_id="001",
+    #     age="P90D",
+    #     description="mouse 5",
+    #     species="Mus musculus",
+    #     sex="M",
+    #     genotype="",
+    # )
+    subject = Subject(
+        subject_id=subject_id,
+        age=age,
+        species=species,
+        sex=sex,
+        genotype=genotype,
+        description=description,
+    )
+
+    return subject
 
 
 def writeNWB(outputPath: str, nwbfile: NWBFile, overWrite: bool = True) -> bool:
@@ -83,6 +113,7 @@ def writeNWB(outputPath: str, nwbfile: NWBFile, overWrite: bool = True) -> bool:
 
 
 def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
+                            subject: Subject,
                             session_description: str,
                             experiment_description: str,
                             keywords: list[str],
@@ -173,6 +204,9 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
         keywords=keywords,
         related_publications=related_publications,
         )
+    
+    # set subject
+    nwbfile.subject = subject
     
     #set imaging plane
     device = nwbfile.create_device(
