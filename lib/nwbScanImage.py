@@ -35,7 +35,7 @@ PARAMS_nwbFilePC = {
     'experimenter': 'Patrick Cody',
     'lab': 'Tzounopoulos Lab',
     'institution': 'University of Pittsburgh',
-    'related_publications': '10.1523/JNEUROSCI.0939-23.2024'
+    'related_publications': 'doi: 10.1523/JNEUROSCI.0939-23.2024'
 }
 
 PARAMS_imagingPC = {
