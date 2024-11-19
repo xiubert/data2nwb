@@ -1,55 +1,25 @@
 """
 Helpers for grabbing image data and metadata from ScanImage .tif files
 """
-import os
 from datetime import datetime
-import numpy as np
 from ScanImageTiffReader import ScanImageTiffReader
 from roiextractors.extractors.tiffimagingextractors.scanimagetiff_utils import (
             extract_extra_metadata,
             parse_metadata,
         )
 
-# todo: split into getMetadata and getImgData so as to not need a big memory pool for img var
-def getTifData(tifFileList: list[str], tifDirectory: str, concatenate: bool = True, getMetadata: bool = True):
-    """
-    Grabs .tif image data as well as frame rate, file instantiation time (creation time), 
-    and frame number from metadata.
-
-    tifFileList: list of .tif files
-    tifDirectory: path to directory containing .tif files
-    """
-    if getMetadata:
-        fr = []
-        fileTimeInstantiate = []
-        nFrames = []
-    
-    if concatenate==False:
-        imgData = []
-    
-    for i,tif in enumerate(tifFileList):
-        if concatenate==True:
-            if i==0:
-                imgData = ScanImageTiffReader(os.path.join(tifDirectory,tif)).data()
-            else:
-                imgData = np.append(imgData,ScanImageTiffReader(os.path.join(tifDirectory,tif)).data(),0)
-        else:
-            imgData.append(ScanImageTiffReader(os.path.join(tifDirectory,tif)).data())
-        
-        if getMetadata:
-            image_metadata = extract_extra_metadata(file_path=os.path.join(tifDirectory,tif))
-            fileTimeInstantiate.append(image_metadata['epoch'])
-            extraMeta = parse_metadata(image_metadata)
-            fr.append(extraMeta['sampling_frequency'])
-            nFrames.append(extraMeta['frames_per_slice'])
-
-    # print(np.shape(imgData))
-    if getMetadata:
-        return imgData,fileTimeInstantiate,nFrames,fr
-    return imgData
-
 
 def getSItifTime(tifFile: str) -> datetime:
+    """
+    Extracts tif timestamp from tif file.
+
+    Args:
+        tifFile (str): path of .tif file
+
+    Returns:
+        (datetime) timestamp of tif file instantiation
+    """
+
     image_metadata = extract_extra_metadata(file_path=tifFile)
     fileTimeInstantiate = image_metadata['epoch']
     return parse_datetime_string(fileTimeInstantiate)
@@ -60,8 +30,15 @@ def getSItifData(tifFile: str, getMetadata: bool = True):
     Grabs .tif metadata as including frame rate, file instantiation time (creation time), 
     and frame number from ScanImage .tif file list.
 
-    tifFileList: list of .tif files
-    tifDirectory: path to directory containing .tif files
+    Args:
+        tifFile (str): path of .tif file
+        getMetadata (bool): whether to include tif metadata in output
+
+    Returns:
+        imgData: 3d numpy array (frame) x (X) x (Y)
+        fileTimeInstantiate (list): timestamp of tif file instantiation (as list for multiple tifs)
+        nFrames (list): number of frames in each tif file
+        frameRate (list): framerate at which tif file was collected
     """
     imgData = ScanImageTiffReader(tifFile).data()
 
@@ -75,12 +52,17 @@ def getSItifData(tifFile: str, getMetadata: bool = True):
         return imgData,fileTimeInstantiate,nFrames,frameRate
     
     return imgData
-
     
 
 def parse_datetime_string(date_str: str) -> datetime:
     """
     Parse date string from ScanImage .tif metadata ('epoch') and convert it to a datetime object.
+
+    Args:
+        date_str: date string contained in 'epoch' variable of .tif metadata. Eg. 'epoch': '[2021,3,11,20,3,13.185]'
+    
+    Returns:
+        dt: datetime object to the microsecond resolution
     """
 
     # Remove the brackets and split the string by commas
@@ -95,7 +77,13 @@ def parse_datetime_string(date_str: str) -> datetime:
 
 def parse_datetime_list(date_list: list[float]) -> datetime:
     """
-    Parse date list from ScanImage .tif metadata ('epoch') and convert it to a datetime object.
+    Takes list from parsed ScanImage tif epoch time string (in parse_datetime_string) and parses list to a datetime object.
+
+    Args:
+        date_list: date string from ScanImage .tif 'epoch' variable as list of floats. Eg. [2021, 3, 11, 20, 3, 13.185]
+    
+    Returns:
+        dt: datetime object to the microsecond resolution
     """
     # Convert the list into a datetime object
     dt = datetime(
@@ -110,29 +98,14 @@ def parse_datetime_list(date_list: list[float]) -> datetime:
     return dt
 
 
-
 def secMicroSec2sec(datetime: datetime):
     """
-    Returns seconds from datetime object split into seconds and microseconds
+    Returns seconds from datetime object split into seconds and microseconds.
+
+    Args:
+        datetime: datetime object with microsecond resolution
+    
+    Returns:
+        dt: datetime object with fractional second resolution
     """
     return datetime.seconds+datetime.microseconds/1e6
-
-
-def filetime2secTimestamp(fileInstantiateTime: list[str], frameCounts: list[int], frameRates: list[float]):
-    """
-    Converts file instantiation times (from Scanimage .tif metadata ['epoch']) 
-    to successive timestamps for all frames in seconds 
-    using frame count and frame rate associated with each file date.
-    """
-    # Convert all date-time strings to datetime objects
-    date_times = np.array([parse_datetime_string(dt_str) for dt_str in fileInstantiateTime])
-    
-    # first starts at 0
-    starts = list(map(lambda x: x.seconds+x.microseconds/1e6,date_times-date_times[0]))
-
-    timestamps = []
-
-    for start,fs,framect in zip(starts,frameRates,frameCounts):
-        timestamps.extend((np.arange(framect)/fs)+start)
-    
-    return timestamps,date_times,starts

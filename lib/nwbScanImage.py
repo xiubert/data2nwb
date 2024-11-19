@@ -185,9 +185,6 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
 
     # get metadata from first tif for session start
     session_start = lib.tifExtract.getSItifTime(os.path.join(experimentDir,tifFileList[0]))
-    session_start
-
-    # print(list(zip(tifFileList,tifFrameCounts,treatment)))
 
     #%% NWB file generation
     # instantiate
@@ -370,7 +367,6 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     fl = Fluorescence(roi_response_series=roi_resp_series)
     ophys_module.add(fl)
     print('added fluorescence trace data for ROIs')
-
 
     # add sound stimulus data via DynamicTable
     pulseTifs,pulseTifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg = lib.mat2py.getTifPulses(
