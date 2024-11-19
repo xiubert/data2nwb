@@ -11,7 +11,13 @@ import lib.tifExtract
 
 def getH5stringList(h5references,h5file):
     """
-    helper for grabbing a list of strings from list of h5 references.
+    Helper for grabbing a list of strings from list of h5 references.
+
+    Args:
+        h5references (list[h5reference]): each element an h5 reference object
+        h5file (h5file object)
+    Returns:
+        string_list (list[str]): each element a string from h5reference
     """
     string_list = []
     for r in h5references:
@@ -22,8 +28,12 @@ def getH5stringList(h5references,h5file):
 def getMatCellArrayOfStr(matPath: str, varPath: list[str]) -> list[str]:
     """
     Returns list of strings from cell array of strings in matlab.
-    matPath: file path of .mat file
-    varPath: nested path of cell array in mat file
+
+    Args:
+        matPath (str): file path of .mat file
+        varPath (list[str]): nested path of cell array in mat file
+    Returns: 
+        string_list (list[str]): each element a string from h5reference
     """
     with h5py.File(matPath, "r") as h5:
         h5_ref = h5
@@ -38,8 +48,13 @@ def getMatCellArrayOfStr(matPath: str, varPath: list[str]) -> list[str]:
 def getMatCellArrayOfNum(matPath: str, varPath: list[str]) -> list[float]:
     """
     Returns list of nums from cell array of num in matlab.
-    matPath: file path of .mat file
-    varPath: nested path of cell array in mat file
+
+    Args:
+        matPath (str): file path of .mat file
+        varPath (list[str]): nested path of cell array in mat file
+
+    Returns:
+        numList (list[float]): each element a float from h5reference
     """
     with h5py.File(matPath, "r") as h5:
         h5_ref = h5
@@ -56,12 +71,19 @@ def getMatCellArrayOfNum(matPath: str, varPath: list[str]) -> list[float]:
 def getMoCorrShiftParams(moCorrMatPath: str, nFrames: list[int] = None, concatenate: bool = False) -> np.ndarray:
     """
     Returns numpy array of xy translation shifts of raw .tif images.
+
+    Args:
+        moCorrMatPath (str): file path of motion correction parameters file eg AA0304_NoRMCorreParams.mat
+        nFrames (list[int]): each element a frame count for associated .tif file
+        concatenate (bool): whether or not to return shifts in one concatenated array
+
+    Returns:
+        allshifts (list): each element is shifts for associated .tif file
+        params: motion correction parameters
+
     """
     moCorrData = loadmat(moCorrMatPath)
-    # shifts = []
-    # for cond in moCorrData['NoRMCorreParams'].dtype.fields:
-    #     for shift in moCorrData['NoRMCorreParams'][cond][0][0]['shifts'][0][0]['shifts']:
-    #         shifts.append(np.squeeze(shift[0]))
+
     for i,cond in enumerate(moCorrData['NoRMCorreParams'].dtype.fields):
         if i==0:
             # unnest
@@ -90,6 +112,12 @@ def getROImasks(roiMatPath: str) -> np.ndarray:
     """
     Returns 1xNumberOfROI array of ROI image masks provided path to experiment .mat file containing
     ROIs drawn on motion corrected data.
+
+    Args:
+        roiMatPath (str): file path to .mat containing ROI segmentation data eg AA0304_moCorrROI_all.mat
+    Returns:
+        IDs (np.array): numpy array of int corresponding to index of ROI
+        masks (np.array): numpy array of ROI masks
     """
     roiData = loadmat(roiMatPath)
     masks = roiData['moCorROI'][0]['mask']
@@ -103,6 +131,14 @@ def getROIfluo(fluoMatPath: str,
     """
     Extract motion corrected fluorescence traces from tifFileList.
     Returns corresponding tif, allFrames X ROI
+
+    Args:
+        fluoMatPath (str): file path to .mat containing ROI fluorescence traces eg AA0304_tifFileList.mat
+        concatenate (bool): whether or not to concatenate all responses across time/frames
+    
+    Returns:
+        tifs (list):each element a tif file names associated with each response trace
+        responses: list of numpy arrays of fluorescence responses for each ROI
     """
     with h5py.File(fluoMatPath, "r") as h5:
         tifTypes = list(h5['tifFileList'].keys())
@@ -124,39 +160,15 @@ def getROIfluo(fluoMatPath: str,
     return tifs,responses
 
 
-
-def getPupilData(pupilMat: str, experimentDir: str, getImgData: bool = False, pupilFrameRate: float = 10):
-    """
-    Helper to grab relevant pupil data from experiment dir.
-    """
-    getNestedStructData = lambda x: x[0][0]
-    pupilMatData = loadmat(os.path.join(experimentDir,pupilMat))
-
-    pupilData = {
-        'pupilFrameFiles': list(map(getNestedStructData,pupilMatData['pulsePupilLegend2P'][:]['pupilFrameFile'])),
-        'pupilRadius': list(map(getNestedStructData,pupilMatData['pulsePupilLegend2P'][:]['pupilRad'])),
-        'DeepLabCutModel': list(map(getNestedStructData,pupilMatData['pulsePupilLegend2P'][:]['model']))
-    }
-    pupilImgData = loadmat(os.path.join(experimentDir,pupilData['pupilFrameFiles'][0]))['pupilFrames']
-    nFrames = [pupilImgData.shape[2]]
-    for pupilFrameFile in pupilData['pupilFrameFiles'][1:]:
-        pupilFrames = loadmat(os.path.join(experimentDir,pupilFrameFile))['pupilFrames']
-        nFrames.append(pupilFrames.shape[2])
-        if getImgData:
-            pupilImgData = np.append(pupilImgData,
-                    pupilFrames,
-                    axis=2)
-    if getImgData:
-        pupilData['pupilImgData'] = np.transpose(pupilImgData, (2, 0, 1))
-    pupilData['nFrames'] = nFrames
-    pupilData['frameRate'] = [pupilFrameRate]*len(pupilData['nFrames'])
-
-    return pupilData
-
-# todo: split into getMetadata and get pupilImgData so that all of pupil data needn't be in memory.
 def getPupilDataProcessed(pupilMatPath: str, pupilFrameRate: float = 10):
     """
-    Helper to grab relevant pupil data from experiment dir.
+    Helper to grab relevant pupil metadata from experiment dir. 
+
+    Args:
+        pupilMatPath (str): file path of .mat containing pupil data eg. AA0304_pulsePupilUVlegend2P_s.mat (pupil data stored as struct in .mat)
+        pupilFrameRate (float): frame rate of pupil video
+    Returns:
+        pupilDataProcessed (dict): pupillometry metadata
     """
     getNestedStructData = lambda x: x[0][0]
     pupilMatData = loadmat(pupilMatPath)
@@ -174,6 +186,11 @@ def getPupilDataProcessed(pupilMatPath: str, pupilFrameRate: float = 10):
 def getPupilImg(pupilMatPath: str) -> np.ndarray:
     """
     Helper to grab pupil img data from save .mat file containing img frames.
+
+    Args:
+        pupilMatPath (str): file path of .mat containing pupil data eg. AA0304_pulsePupilUVlegend2P_s.mat (pupil data stored as struct in .mat)
+    Returns:
+        np.array of pupil video data (time) x (X) x (Y)
     """
     pupilImgData = loadmat(pupilMatPath)['pupilFrames']
 
@@ -181,6 +198,16 @@ def getPupilImg(pupilMatPath: str) -> np.ndarray:
 
 
 def getPulses(tif: str, tifType: str) -> dict:
+    """
+    Grabs stimulation metadata associated with provided .tif.
+
+    Args:
+        tif (str): file path to .tif
+        tifType (str): whether .tif is associated with single stim or with multiple stims/pulses (in case of BF mapping)
+    Returns:
+        pulseParams (dict): parameters of delivered pulse stimuli
+        pulse (dict): metadata associated with pulse/stimuli eg pulse name etc
+    """
     mat = loadmat(tif.replace('.tif','_Pulses.mat'))
 
     pulseParams,pulse = {},{}
@@ -203,6 +230,11 @@ def getPulses(tif: str, tifType: str) -> dict:
 def getTifTypes(tifFileListMatPath: str) -> list[str]:
     """
     Returns available tif types from tifFileList mat file.
+
+    Args:
+        tifFileListMatPath (str): filepath to .mat containing metadata of .tif files eg AA0304_tifFileList.mat
+    Returns:
+        list with each element indicated whether tif has single pulse/stimulus or multiple (in case of BF mapping .tif)
     """
     with h5py.File(tifFileListMatPath, "r") as h5:
         return list(h5['tifFileList'].keys())
@@ -211,6 +243,16 @@ def getTifTypes(tifFileListMatPath: str) -> list[str]:
 def getTifList(dataPath: str, experimentID: str, tifListMatFilename: str):
     """
     Gets tif list, frame counts, and associated treatment from tifFileList.mat file.
+
+    Args:
+        dataPath (str): parent folder path to tifFileList.mat
+        experimentID: experiment id (usually parent folder name eg AA0304)
+        tifListMatFilename: filename of tifFileList.mat eg AA0304_tifFileList.mat
+    Returns:
+        tifList (list[str]): each element a .tif filename
+        tifTypeList (list[str]): each element indicates .tif type (single pulse or multiple pulses/BFmap)
+        treatments (list[str]): element indicates treatment associated w/ .tif
+        nFrames (list[int]): element indicates frame count for associated .tif
     """
     tifListMatPath = os.path.join(dataPath,experimentID,tifListMatFilename)
     tifTypes = getTifTypes(tifListMatPath)
@@ -235,6 +277,21 @@ def getTifList(dataPath: str, experimentID: str, tifListMatFilename: str):
 def getTifPulses(dataPath: str, experimentID: str, tifList: list[str], tifTypeList: list[str]):
     """
     Gets associated .tif pulse data.
+
+    Args:
+        dataPath (str): parent folder path to tifFileList.mat
+        experimentID: experiment id (usually parent folder name eg AA0304)
+        tifList (list[str]): each element is .tif filename
+        tifTypeList (list[str]): each element indicates .tif type (single pulse or multiple pulses/BFmap)
+
+    Returns:
+        tifs (list[str]): each element is .tif filename
+        tifTypes (list[str]): each element indicates .tif type (single pulse or multiple pulses/BFmap)
+        stimDelays (list[int]): each element indicates delay to stimulus for associated .tif
+        ISIs (list[int]): each element indicates ISI between pulses for assocaited .tif
+        pulseNames (list[str]): each element is list of pulses for associated .tif
+        pulseSets (list[str]): each element indicates pulse set name for associated .tif
+        xsg (list[str]): each element indicates associated .xsg file(s) for assocaited .tif
     """
     tifs, tifTypes = [],[]
     stimDelays, ISIs, pulseNames, pulseSets, xsg = [],[],[],[],[]

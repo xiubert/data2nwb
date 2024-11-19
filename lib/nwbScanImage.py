@@ -64,17 +64,24 @@ def setSubject(subject_id: str, age: str, species: str,
     """
     Simple helper function to set experiment subject.
 
-    age: ISO 8601 Duration format, e.g., "P90D" for 90 days old
-    species: The formal Latin binomial nomenclature, e.g., "Mus musculus", "Homo sapiens"
-    sex: Single letter abbreviation, e.g., "F" (female), "M" (male), "U" (unknown), and "O" (other)
+    Args:
+        subject_id (str): id of animal subject (usually in format [A-Z]{2}/d{4} eg. AA0304)
+        age: ISO 8601 Duration format, e.g., "P90D" for 90 days old
+        species (str): The formal Latin binomial nomenclature, e.g., "Mus musculus", "Homo sapiens"
+        sex (str): Single letter abbreviation, e.g., "F" (female), "M" (male), "U" (unknown), and "O" (other)
+        genotype (str): genotype of subject eg. C57BL6/J or ZnT3KO
+        description (str): informative description of subject
+    
+    Returns:
+        nwb Subject object
     """
     # subject = Subject(
-    #     subject_id="001",
+    #     subject_id="AA0304",
     #     age="P90D",
-    #     description="mouse 5",
+    #     description="Injected on 4/7/21 with AAV9.CaMKII. GCaMP6f.WPRE.SV40 at 1:6 into right ACtx",
     #     species="Mus musculus",
     #     sex="M",
-    #     genotype="",
+    #     genotype="C57BL6/J",
     # )
     subject = Subject(
         subject_id=subject_id,
@@ -140,9 +147,13 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
                            ) -> NWBFile:
     """
     A simple function to generate a standardized NWB file for a 
-    given experiment directory for a given experiment ID.
+    given a given experiment directory (directory name assumed to match experiment ID).
+    Saves NWB tile to NWBoutputPath. Outputs NWB object if returnNWB True.
 
-    Session start assumed to be time of first .tif.
+    Adds ophys, motion correction, ROI segmentation and traces, and stimulus metadata.
+    Adds pupillometry if available.
+
+    Session start assumed to be time of first recorded .tif (with lowest file number id, eg AA0304_0001.tif).
     """
     #%% set directories
     experimentDir = os.path.join(dataPath,experimentID)
