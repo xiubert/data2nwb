@@ -1,0 +1,13 @@
+dandi==0.64.0
+h5py==3.11.0
+matplotlib==3.9.2
+neurosift==0.2.13
+notebook==7.2.1
+numpy==1.26.4
+nwbinspector==0.5.2
+pandas==2.2.2
+pynwb==2.8.1
+regex==2024.7.24
+roiextractors==0.5.8
+scipy==1.14.0
+tqdm==4.66.5
