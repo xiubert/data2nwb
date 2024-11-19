@@ -1,5 +1,5 @@
 # Scripts for converting 2P ophys data with pupillometry to NWB format
-1. Clone repository `https://github.com/xiubert/standardize2nwb.git` and change to respository directory (`cd standardize2nwb`).
+1. Clone repository `https://github.com/xiubert/data2nwb.git` and change to respository directory (`cd standardize2nwb`).
 2. Create python venv for running these scripts to isolate dependencies: `python -m venv venvNWB`
 3. Activate virtual environment:
     - unix: `source venvNWB/bin/activate`
