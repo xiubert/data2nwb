@@ -1,4 +1,3 @@
-subject_id,DOB,age,genotype,sex,Virus,Inj. Date,dilution,description
-AA0001,1/1/21,45,C57BL6/J,F,AAV9.CaMKII.GCaMP6f.WPRE.SV40,2/15/21,1:6,Injected on 2/15/21 with AAV9.CaMKII.GCaMP6f.WPRE.SV40 at 1:6 into right ACtx
-AA0002,1/1/21,46,C57BL6/J,M,AAV9.CaMKII.GCaMP6f.WPRE.SV40,2/15/21,1:6,Injected on 2/15/21 with AAV9.CaMKII.GCaMP6f.WPRE.SV40 at 1:6 into right ACtx
-AA0003,1/1/21,48,ZnT3KO,F,AAV9.CaMKII.GCaMP6f.WPRE.SV40,2/17/21,1:6,Injected on 2/17/21 with AAV9.CaMKII.GCaMP6f.WPRE.SV40 at 1:6 into right ACtx
+subject_id,DOB,age,genotype,sex,virus,injection_date,dilution,description
+CC0001,12/13/21,99,SOM-cre,M,AAV9.CaMKII.GCaMP6f.WPRE.SV40,1/14/22,1:6,Injected on 1/14/22 with AAV9.CaMKII.GCaMP6f.WPRE.SV40 at 1:6 into right ACtx
+CC0002,12/13/21,100,SOM-cre,M,AAV9.CaMKII.GCaMP6f.WPRE.SV40,1/14/22,1:6,Injected on 1/14/22 with AAV9.CaMKII.GCaMP6f.WPRE.SV40 at 1:6 into right ACtx

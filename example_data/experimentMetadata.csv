@@ -1,4 +1,3 @@
-experimentID,session_description,experiment_description,keywords
-AA0001,pupilPTinContrast,Pure tone in low and high DRC contrast with pupillometry,"['pupillometry', '2P', 'DRC']"
-AA0002,ZX1_baseline | pupilPTinContrast,Pupil baseline in ZX1 | Pure tone in low and high DRC contrast with pupillometry,"['pupillometry', '2P', 'DRC', 'ZX1']"
-AA0003,pupil_contrast_ZnT3KO,Low and high DRC contrast during pupillometry in ZnT3KO,"['pupillometry', '2P', 'DRC', 'ZnT3KO']"
+subject_id,session_description,experiment_description,keywords
+CC0001,offset control,DRC sound offset control,"['2P', 'DRC']"
+CC0002,offset control,DRC sound offset control,"['2P', 'DRC']"

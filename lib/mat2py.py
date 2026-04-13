@@ -230,6 +230,9 @@ def getPulses(tif: str, tifType: str) -> dict:
 def getTifTypes(tifFileListMatPath: str) -> list[str]:
     """
     Returns available tif types from tifFileList mat file.
+    
+    Looks for structure fields in tifFileList variable within *_tifFileList.mat mat file.
+    matlabPAC_process2P analysis pipeline groups tif files by FRA mapping or stim in general. 
 
     Args:
         tifFileListMatPath (str): filepath to .mat containing metadata of .tif files eg AA0304_tifFileList.mat

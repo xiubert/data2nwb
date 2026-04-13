@@ -152,6 +152,7 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     # ROI table regions are created for each ImageSegmentation (stored in plane_seg) and house
     # ROI fluorescence data.
     # Each RoiResponseSeries (eg fluorescence for a given .tif) is associated with the corresponding ROI table.
+    
     roiMatPat = f"{experimentID}_moCorrROI*.mat"
     roiMats = glob.glob(os.path.join(experimentDir,roiMatPat))
 
