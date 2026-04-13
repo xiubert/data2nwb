@@ -12,3 +12,7 @@ data/
 
 # venvs
 venv*/
+env*/
+
+# vscode
+.vscode
