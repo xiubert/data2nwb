@@ -1,0 +1,24 @@
+# NWB config template — copy this file and fill in your values.
+# Pass the path as the second argument to scanimage2nwb.py:
+#   python scanimage2nwb.py /path/to/data ./configs/my_params.yaml
+
+nwb_file:
+  experimenter: ""                  # e.g. "Last, First M"
+  lab: ""                           # e.g. "Smith Lab"
+  institution: ""                   # e.g. "University of Example"
+  related_publications: ""          # e.g. "doi: 10.xxxx/xxxxx" (or omit key if none)
+
+imaging:
+  imaging_scopeDesc: ""             # full description of the microscope setup
+  imaging_manufacturer: ""          # e.g. "Sutter", "Thorlabs"
+  imaging_opticalChannel0desc: ""   # e.g. "green channel for GCaMP"
+  imaging_emissionLambda: 0.0       # emission filter center wavelength in nm
+  imagingPlane_rate: 0.0            # imaging frame rate in Hz
+  imagingPlane_desc: ""             # e.g. "Auditory Cortex"
+  imagingPlane_excitationLambda: 0.0  # excitation wavelength in nm
+  imagingPlane_loc: ""              # brain region abbreviation, e.g. "ACtx"
+  imagingPlane_indicator: ""        # calcium indicator, e.g. "GFP", "GCaMP6f"
+  imagingPlane_gridSpacing: [0.0, 0.0]          # [x, y] pixel size in gridSpacingUnit
+  imagingPlane_gridSpacingUnit: "micrometers"
+  imagingPlane_originCoords: [0.0, 0.0, 0.0]   # [AP, ML, DV] relative to bregma
+  imagingPlane_originCoordsUnit: "meters"

@@ -26,38 +26,6 @@ from hdmf.backends.hdf5.h5_utils import H5DataIO
 Functions for generating standard NWB files for ScanImage experiments.
 """
 
-# common experiment params
-PARAMS_nwbFile = {
-    'lab': 'Tzounopoulos Lab',
-    'institution': 'University of Pittsburgh',
-}
-
-PARAMS_nwbFilePC = {
-    'experimenter': 'Cody, Patrick A',
-    'lab': 'Tzounopoulos Lab',
-    'institution': 'University of Pittsburgh',
-    'related_publications': 'doi: 10.1523/JNEUROSCI.0939-23.2024'
-}
-
-PARAMS_imagingPC = {
-    'imaging_scopeDesc': (
-        "Sutter moveable objective microscope (MOM) with mode-locked laser light (MaiTai HP) "
-        "at 100-200 mW intensity through 40x0.8NA objective (Olympus) with X-Y galvanometric scanning"
-    ),
-    'imaging_manufacturer': 'Sutter',
-    'imaging_opticalChannel0desc': "green channel for GCaMP",
-    'imaging_emissionLambda': 525.0,
-    'imagingPlane_rate': 5.0,
-    'imagingPlane_desc': 'Auditory Cortex',
-    'imagingPlane_excitationLambda': 940.0,
-    'imagingPlane_loc': 'ACtx',
-    'imagingPlane_indicator': 'GFP',
-    'imagingPlane_gridSpacing': [145.0, 145.0],
-    'imagingPlane_gridSpacingUnit': 'micrometers',
-    'imagingPlane_originCoords': [-2.0, 4.25, 2.0],
-    'imagingPlane_originCoordsUnit': 'meters'
-}
-
 def setSubject(subject_id: str, age: str, species: str, 
                sex: str, genotype: str,
                description: str):

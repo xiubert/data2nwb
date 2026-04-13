@@ -6,21 +6,50 @@
     - Windows: double click `venvNBW/bin/activate.bat`
 4. Install dependencies: `pip install -r requirements.txt`
 
-- **Scripts are currently specific to PC data in Cody et al 2024 (doi: 10.1523/JNEUROSCI.0939-23.2024), but can be abstracted to other experiments.**
-    - **At the very least `PARAMS_*` variables in `data2nwb/lib/nwbScanImage.py` will need to be updated for corresponding experimenter and imaging settings.**
+- **Experimenter and imaging parameters are configured via YAML files in `configs/`.**
+    - `configs/params_PC.yaml` contains the settings used in Cody et al 2024 (doi: 10.1523/JNEUROSCI.0939-23.2024).
+    - `configs/params_general.yaml` is a blank template — copy it, fill in your experimenter and imaging settings, and pass it as the second argument to the script (see **Running** below).
 - **Metadata file formatting assumptions:**
-    - Requires subject and experiment metadata in `./data/animalList.csv` and `./data/experimentMetadata.csv`. See `scanimage2nwb.ipynb` for required columns and formatting.
+    - Requires subject and experiment metadata in `./data/animalList.csv` and `./data/experimentMetadata.csv`. See `example_data/` for example files.
+    - `subject_id` (in `animalList.csv`) and `experimentID` (in `experimentMetadata.csv`) must match each other and the corresponding data folder name.
+
+    **`animalList.csv`** — one row per subject, indexed by `subject_id`:
+
+    | Column | Required | Description |
+    |--------|----------|-------------|
+    | `subject_id` | yes | Animal identifier; must match `experimentID` and data folder name |
+    | `age` | yes | Age at time of experiment in days (integer); formatted as `P{age}D` per ISO 8601 |
+    | `sex` | yes | `M` or `F` |
+    | `genotype` | yes | e.g. `C57BL6/J`, `ZnT3KO` |
+    | `description` | yes | Free-text subject description (e.g. virus injection details) |
+    | `DOB`, `Virus`, `Inj. Date`, `dilution` | no | Informational; not written to NWB |
+
+    **`experimentMetadata.csv`** — one row per experiment, indexed by `experimentID`:
+
+    | Column | Required | Description |
+    |--------|----------|-------------|
+    | `experimentID` | yes | Must match `subject_id` and data folder name |
+    | `session_description` | yes | Short label(s) for the session; use ` \| ` to separate multiple analyses |
+    | `experiment_description` | yes | Full description(s) of the experiment; use ` \| ` to separate multiple analyses |
+    | `keywords` | yes | Python list literal string, e.g. `"['2P', 'DRC', 'pupillometry']"` |
+
     - See https://github.com/xiubert/matlabPAC_process2P for 2P experiment data processing. Aggregated experiment metadata files correspond to this pipeline.
         - Stimuli metadata assumed to be contained in `f"{experimentID}_tifFileList.mat"`
         - ROI segmentation (masks etc) assumed to be stored in `f"{experimentID}_moCorrROI*.mat"`
         - Pupillometry metadata assumed to be contained in `f"{experimentID}_pulsePupilUVlegend2P_s.mat"` (saved as Matlab struct). For existing pupillometry tables in .mat files, a matlab script is needed to reformat table as struct to be able to load into python. See: `./extra/tableMAT2StructMAT.m`.
-    - See https://github.com/xiubert/matlabPAC_2Pacquisition for ScanImage and Ephus settings for stamping stimulus/pulse and pupillometry metadata (eg. `{tifFileName}_pulses.mat`)
+    - See https://github.com/xiubert/2PCI_setup for ScanImage and Ephus settings for stamping stimulus/pulse and pupillometry metadata (eg. `{tifFileName}_pulses.mat`)
 
-   
-- Subject_ID is assumed to be same as experiment parent folder (`subject_id==experimentID`)
+- Scripts can be run within python notebook (`scanimage2nwb.ipynb`) or from the command line:
 
-- Scripts can be run within python notebook (`scanimage2nwb.ipynb` or from command line `scanimage2nwb.py`)
-    - Scripts output `.nwb` file that should conform to DANDI data standards (see below for validation)
+**Running:**
+```bash
+# default config (configs/params_PC.yaml)
+python scanimage2nwb.py /path/to/data
+
+# custom config
+python scanimage2nwb.py /path/to/data ./configs/my_params.yaml
+```
+Scripts output `.nwb` file that should conform to DANDI data standards (see below for validation).
 
 - Explore NWB output file with `neurosift`. Running will open web browser view of `.nwb` file.
     1. in python env: `pip install --upgrade neurosift`

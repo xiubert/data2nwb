@@ -1,6 +1,7 @@
 import pandas as pd
 import ast
 import os
+import yaml
 import lib.nwbScanImage
 import sys
 
@@ -10,6 +11,12 @@ if len(sys.argv) > 1:
 else:
     raise("No path provided.")
 dataPath = sys.argv[1]
+
+# Load config (default to PC params; pass a different path as second argument)
+config_path = sys.argv[2] if len(sys.argv) > 2 else './configs/params_PC.yaml'
+print(f"config: {config_path}")
+with open(config_path) as f:
+    cfg = yaml.safe_load(f)
 
 # retrieve subject and experiment metadata from log tables
 subjects = pd.read_csv('./data/animalList.csv')
@@ -22,7 +29,7 @@ for experimentID,d in experiments.iterrows():
     print(f"processing: {experimentID}...")
 
     outputNWBpath = os.path.join(dataPath,experimentID,f"{experimentID}_DANDI.nwb")
-    
+
     subject = lib.nwbScanImage.setSubject(
         subject_id=experimentID,
         age=f"P{subjects.loc[experimentID]['age']}D",
@@ -33,13 +40,13 @@ for experimentID,d in experiments.iterrows():
     )
 
     lib.nwbScanImage.genNWBfromScanImage_pc(
-        experimentID=experimentID, 
-        dataPath=dataPath, 
+        experimentID=experimentID,
+        dataPath=dataPath,
         NWBoutputPath=outputNWBpath,
         subject=subject,
         session_description=d['session_description'],
         experiment_description=d['experiment_description'],
         keywords=d['keywords'],
-        **lib.nwbScanImage.PARAMS_nwbFilePC,
-        **lib.nwbScanImage.PARAMS_imagingPC
+        **cfg['nwb_file'],
+        **cfg['imaging']
         )
