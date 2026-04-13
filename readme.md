@@ -1,70 +1,205 @@
-# Scripts for converting 2P ophys data with pupillometry to NWB format
-1. Clone repository `https://github.com/xiubert/data2nwb.git` and change to respository directory (`cd standardize2nwb`).
-2. Create python venv for running these scripts to isolate dependencies: `python -m venv venvNWB`
-3. Activate virtual environment:
-    - unix: `source venvNWB/bin/activate`
-    - Windows: double click `venvNBW/bin/activate.bat`
-4. Install dependencies: `pip install -r requirements.txt`
+# data2nwb — ScanImage 2P ophys to NWB converter
 
-- **Experimenter and imaging parameters are configured via YAML files in `configs/`.**
-    - `configs/params_PC.yaml` contains the settings used in Cody et al 2024 (doi: 10.1523/JNEUROSCI.0939-23.2024).
-    - `configs/params_general.yaml` is a blank template — copy it, fill in your experimenter and imaging settings, and pass it as the second argument to the script (see **Running** below).
-- **Data directory structure:** `dataPath` should be the top-level directory containing one folder per subject, where each folder is named by `subject_id`:
-    ```
-    dataPath/
-      AA0001/    ← subject_id
-      AA0002/
-      AA0003/
-    ```
-- **Metadata file formatting assumptions:**
-    - Requires subject and experiment metadata CSVs. See `example_data/` for example files.
-    - `subject_id` must match across both CSVs and the corresponding data folder name.
+Converts ScanImage two-photon calcium imaging data (with optional pupillometry) to [NWB](https://www.nwb.org/) format for upload to [DANDI](https://dandiarchive.org/).
 
-    **`animalList.csv`** — one row per subject, indexed by `subject_id`:
+---
 
-    | Column | Required | Description |
-    |--------|----------|-------------|
-    | `subject_id` | yes | Animal identifier; must match `experimentID` and data folder name |
-    | `age` | yes | Age at time of experiment in days (integer); formatted as `P{age}D` per ISO 8601 |
-    | `sex` | yes | `M` or `F` |
-    | `genotype` | yes | e.g. `C57BL6/J`, `ZnT3KO` |
-    | `description` | yes | Free-text subject description (e.g. virus injection details) |
-    | `DOB`, `virus`, `injection_date`, `dilution` | no | Informational; not written to NWB |
+## Setup
 
-    **`experimentMetadata.csv`** — one row per experiment, indexed by `subject_id`:
+1. Clone the repository and change into it:
+   ```bash
+   git clone https://github.com/xiubert/data2nwb.git
+   cd data2nwb
+   ```
+2. Create and activate a virtual environment:
+   ```bash
+   python -m venv env
+   source env/bin/activate          # unix
+   env\Scripts\activate.bat         # Windows
+   ```
+3. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-    | Column | Required | Description |
-    |--------|----------|-------------|
-    | `subject_id` | yes | Must match `subject_id` in `animalList.csv` and data folder name |
-    | `session_description` | yes | Short label(s) for the session; use ` \| ` to separate multiple analyses |
-    | `experiment_description` | yes | Full description(s) of the experiment; use ` \| ` to separate multiple analyses |
-    | `keywords` | yes | Python list literal string, e.g. `"['2P', 'DRC', 'pupillometry']"` |
+---
 
-    - See https://github.com/xiubert/matlabPAC_process2P for 2P experiment data processing. Aggregated experiment metadata files correspond to this pipeline.
-        - Stimuli metadata assumed to be contained in `f"{experimentID}_tifFileList.mat"`
-        - ROI segmentation (masks etc) assumed to be stored in `f"{experimentID}_moCorrROI*.mat"`
-        - Pupillometry metadata assumed to be contained in `f"{experimentID}_pulsePupilUVlegend2P_s.mat"` (saved as Matlab struct). For existing pupillometry tables in .mat files, a matlab script is needed to reformat table as struct to be able to load into python. See: `./extra/tableMAT2StructMAT.m`.
-    - See https://github.com/xiubert/2PCI_setup for ScanImage and Ephus settings for stamping stimulus/pulse and pupillometry metadata (eg. `{tifFileName}_pulses.mat`)
+## Running
 
-- Scripts can be run within python notebook (`scanimage2nwb.ipynb`) or from the command line:
+Experimenter and imaging parameters are configured via YAML files in `configs/`.  
+`configs/params_PC.yaml` contains settings used in Cody et al 2024 (doi: 10.1523/JNEUROSCI.0939-23.2024).  
+`configs/params_general.yaml` is a blank template — copy, fill in, and pass as `--config`.
 
-**Running:**
 ```bash
 # all defaults (./data/animalList.csv, ./data/experimentMetadata.csv, ./configs/params_PC.yaml)
 python scanimage2nwb.py /path/to/data
 
 # custom paths
 python scanimage2nwb.py /path/to/data \
-    --subjects /path/to/animalList.csv \
+    --subjects  /path/to/animalList.csv \
     --experiments /path/to/experimentMetadata.csv \
     --config ./configs/my_params.yaml
 ```
-Scripts output `.nwb` file that should conform to DANDI data standards (see below for validation).
 
-- Explore NWB output file with `neurosift`. Running will open web browser view of `.nwb` file.
-    1. in python env: `pip install --upgrade neurosift`
-    2. `neurosift view-nwb AA0304_DANDI.nwb`
-- After conversion, confirm NWB format conforms to DANDI standards w/ nwbinspector:
-    1. in python env: `pip install -U nwbinspector`
-    2. `nwbinspector "AA0304.nwb" --config dandi`
+Scripts can also be run within a Python notebook (`scanimage2nwb.ipynb`).  
+Output is one `.nwb` file per experiment, written to `{dataPath}/{experimentID}/{experimentID}_DANDI.nwb`.
 
+---
+
+## Data directory structure
+
+`dataPath` must be the top-level directory containing one folder per subject, named by `subject_id`:
+
+```
+dataPath/
+  AA0001/          ← experimentID / subject_id
+    AA0001*.tif
+    NoRMCorred/
+      AA0001*_NoRMCorre.tif
+      AA0001_NoRMCorreParams.mat
+    AA0001_moCorrROI_all.mat   (or AA0001*_roiOutput.mat)
+    AA0001_tifFileList.mat     (optional — see fallbacks below)
+    AA0001*_Pulses.mat         (optional — see fallbacks below)
+  AA0002/
+  ...
+```
+
+---
+
+## Subject and experiment metadata CSVs
+
+Stored in `data/` by default. See `data/animalList.csv` and `data/experimentMetadata.csv` for examples.  
+`subject_id` must match across both CSVs and the corresponding data folder name.
+
+**`animalList.csv`** — one row per subject:
+
+| Column | Required | Description |
+|--------|----------|-------------|
+| `subject_id` | yes | Animal identifier; must match `experimentID` and data folder name |
+| `age` | yes | Age at experiment in days (integer); written as `P{age}D` (ISO 8601) |
+| `sex` | yes | `M` or `F` |
+| `genotype` | yes | e.g. `C57BL6/J`, `ZnT3KO` |
+| `description` | yes | Free-text subject description |
+| `DOB`, `virus`, `injection_date`, `dilution` | no | Informational; not written to NWB |
+
+**`experimentMetadata.csv`** — one row per experiment:
+
+| Column | Required | Description |
+|--------|----------|-------------|
+| `subject_id` | yes | Must match `animalList.csv` and data folder name |
+| `session_description` | yes | Short session label(s); use ` \| ` to separate multiple |
+| `experiment_description` | yes | Full description(s); use ` \| ` to separate multiple |
+| `keywords` | yes | Python list literal, e.g. `"['2P', 'DRC', 'pupillometry']"` |
+
+---
+
+## Required files per pipeline stage and fallback paths
+
+Each stage tries sources in priority order, falling back to the next if the preferred file is absent.
+
+---
+
+### 1. Tif file list, treatment, and frame counts
+
+Determines which `.tif` files belong to the experiment, their treatment label (e.g. `preZX1`, `postZX1`), tif type (`stim` / `map`), and frame counts.
+
+| Priority | Source | Notes |
+|----------|--------|-------|
+| 1 | `{experimentID}_tifFileList.mat` | Generated by [matlabPAC_process2P](https://github.com/xiubert/matlabPAC_process2P). Contains full metadata. |
+| 2 | Interactive scan of `{experimentID}*.tif` files in the experiment directory | Prompts for treatment name, pre/post assignment, and mapping file selection. Frame counts read from tif metadata. Uses a GUI dialog if a display is available; otherwise falls back to numbered terminal prompts supporting range syntax (e.g. `1-5,7,9`). |
+
+---
+
+### 2. ROI masks
+
+| Priority | Source | Notes |
+|----------|--------|-------|
+| 1 | `{experimentID}_moCorrROI*.mat` | Legacy MATLAB output. Single `_all.mat` → one ROI set for all conditions; multiple files → one per treatment condition. |
+| 2 | `*_roiOutput.mat` (interactive selection) | Newer format; ROI struct at `fluo2p.roi`. If multiple files are present, a selection dialog is shown. Treated as equivalent to `_moCorrROI_all.mat` (single ROI set). |
+
+---
+
+### 3. ROI fluorescence traces
+
+Mean fluorescence per ROI per frame, shape `(nFrames × nROIs)` per tif.
+
+| Priority | Source | Notes |
+|----------|--------|-------|
+| 1 | `{experimentID}_tifFileList.mat` | Pre-computed `moCorRawFroi` traces stored by matlabPAC_process2P. |
+| 2 | Motion-corrected tifs in `{motionCorrectedTifDir}/` | Computed directly from `{tif}_NoRMCorre.tif` files using ROI masks. Mean pixel value within each mask is calculated per frame via vectorised matrix multiply. |
+
+---
+
+### 4. Pulse / stimulus metadata
+
+Maps sound stimulus parameters to each `.tif` file. One row per pulse/xsg file (map tifs expand to one row per stimulus).
+
+| Priority | Source | How to generate | Notes |
+|----------|--------|-----------------|-------|
+| 1 | `{experimentID}*_Pulses.mat` (one per tif) | Automatic — written by [2PCI_setup](https://github.com/xiubert/2PCI_setup) ScanImage/Ephus integration. | Full per-pulse metadata including individual pulse names. |
+| 2 | `pulseLegend2P.mat` in experiment directory | Run `extra/tifPulseLegend2P.m` in MATLAB (see below). | Aggregated struct array saved as `-v7.3`. |
+| 3 | `pulseLegend2P.csv` in experiment directory | Create manually using `data/pulseLegend2P_example.csv` as template. | Plain CSV; no MATLAB required. |
+
+If none of the above are found, a `FileNotFoundError` is raised.
+
+#### Generating `pulseLegend2P.mat` in MATLAB
+
+`extra/tifPulseLegend2P.m` scans the experiment directory for `*_Pulses.mat` files and builds an aggregated struct.
+
+```matlab
+% scan directory and save output
+pulseLegend2P = tifPulseLegend2P('/path/to/experimentDir', true);
+
+% scan without saving
+pulseLegend2P = tifPulseLegend2P('/path/to/experimentDir');
+```
+
+The function extracts per-tif: `pulseName`, `pulseSet`, `stimDelay`, `ISI`, and `xsg` (all individual pulse entries for map files).
+
+#### `pulseLegend2P.csv` format
+
+One row per pulse/xsg. Map tifs appear on multiple rows (one per associated xsg file). See `data/pulseLegend2P_example.csv` for a template.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `tif` | string | `.tif` filename (basename only) |
+| `type` | `stim` \| `map` | Single stimulus or BF mapping file |
+| `pulseName` | string | Pulse name |
+| `pulseSet` | string | Pulse set name |
+| `stimDelay` | float | Delay to stimulus onset in seconds |
+| `ISI` | float | Inter-stimulus interval in seconds |
+| `xsg` | string | Associated `.xsg` file basename |
+
+---
+
+### 5. Pupillometry (optional)
+
+| Source | Notes |
+|--------|-------|
+| `{experimentID}_pulsePupilUVlegend2P_s.mat` | Pupil data saved as MATLAB struct. |
+| `{experimentID}_pulsePupilUVlegend2P.mat` | Pupil data saved as MATLAB table — requires conversion to struct first using `extra/tableMAT2StructMAT.m`. |
+
+If neither is present the pupillometry section is skipped silently.
+
+---
+
+## Validating and exploring NWB output
+
+Validate against DANDI standards:
+```bash
+pip install -U nwbinspector
+nwbinspector "{experimentID}_DANDI.nwb" --config dandi
+```
+
+Explore interactively in the browser:
+```bash
+pip install --upgrade neurosift
+neurosift view-nwb "{experimentID}_DANDI.nwb"
+```
+
+---
+
+## Related repositories
+
+- [matlabPAC_process2P](https://github.com/xiubert/matlabPAC_process2P) — MATLAB pipeline that produces `_tifFileList.mat`, `_moCorrROI*.mat`, and `_NoRMCorreParams.mat`
+- [2PCI_setup](https://github.com/xiubert/2PCI_setup) — ScanImage / Ephus settings for stamping per-tif pulse and pupillometry metadata

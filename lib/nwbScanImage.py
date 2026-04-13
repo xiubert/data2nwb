@@ -156,7 +156,21 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     roiMatPat = f"{experimentID}_moCorrROI*.mat"
     roiMats = glob.glob(os.path.join(experimentDir,roiMatPat))
 
+    if not roiMats:
+        roiOutputMats = sorted(glob.glob(os.path.join(experimentDir, '*_roiOutput.mat')))
+        if not roiOutputMats:
+            raise FileNotFoundError(f"No ROI .mat files found in {experimentDir}")
+        roiMats = [lib.mat2py._select_one(
+            title='ROI file selection',
+            prompt='Select roiOutput.mat file:',
+            items=[os.path.basename(p) for p in roiOutputMats],
+            base_dir=experimentDir
+        )]
+
     if len(roiMats)==1 and os.path.basename(roiMats[0])==f"{experimentID}_moCorrROI_all.mat":
+        roiSet = ["all"]
+        tifROIset = roiSet*len(treatment)
+    elif len(roiMats)==1 and os.path.basename(roiMats[0]).endswith('_roiOutput.mat'):
         roiSet = ["all"]
         tifROIset = roiSet*len(treatment)
     else:
@@ -300,10 +314,12 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     ophys_module.add(img_seg)
 
     plane_seg = {}
+    roiMasksPerCond = {}
     # usually roiMat for each treatment
     for roiMat,roiCond in zip(roiMats,roiSet):
         # treatCond = ('none' if roiCond=='all' else roiCond)
         roiIDs,roiMasks = lib.mat2py.getROImasks(roiMat)
+        roiMasksPerCond[roiCond] = roiMasks
 
         plane_seg[roiCond] = img_seg.create_plane_segmentation(
             name=f"PlaneSegmentation_{roiCond}",
@@ -318,10 +334,18 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     print("added ROI segmentation data")
 
     # add fluorescence traces for ROIs
-    # load ROI fluo data from experiment
-    fluoTif,fluoROI = lib.mat2py.getROIfluo(os.path.join(experimentDir,fluorescenceMat))
-    # ensure fluo traces match tif files
-    fluoROI = [fluoROI[i] for i in np.where(np.isin(fluoTif,tifFileList))[0]]
+    fluoMatPath = os.path.join(experimentDir, fluorescenceMat)
+    if os.path.exists(fluoMatPath):
+        fluoTif,fluoROI = lib.mat2py.getROIfluo(fluoMatPath)
+        fluoROI = [fluoROI[i] for i in np.where(np.isin(fluoTif,tifFileList))[0]]
+    else:
+        print("tifFileList not found — computing ROI fluorescence from motion-corrected tifs...")
+        combined_masks = np.concatenate([roiMasksPerCond[c] for c in roiSet], axis=0)
+        fluoTif, fluoROI = lib.mat2py.getROIfluoFromTifs(
+            tifList=tifFileList,
+            masks=combined_masks,
+            tifDir=os.path.join(experimentDir, motionCorrectedTifDir),
+        )
 
     # roi fluorescence responses associated with a region, each region is associated with a plane segmentation (usually one per condition)
     # which has corresponding IDs for the ROI - roiResponseSeries a linked to these planesegment IDs
@@ -349,8 +373,24 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     print('added fluorescence trace data for ROIs')
 
     # add sound stimulus data via DynamicTable
-    pulseTifs,pulseTifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg = lib.mat2py.getTifPulses(
-        dataPath,experimentID,tifFileList,tifTypeList)
+    pulsesMatFiles = glob.glob(os.path.join(experimentDir, '*_Pulses.mat'))
+    legendMat = os.path.join(experimentDir, 'pulseLegend2P.mat')
+    legendCSV = os.path.join(experimentDir, 'pulseLegend2P.csv')
+    if pulsesMatFiles:
+        pulseTifs,pulseTifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg = lib.mat2py.getTifPulses(
+            dataPath,experimentID,tifFileList,tifTypeList)
+    elif os.path.exists(legendMat):
+        print("No _Pulses.mat files found — reading pulse metadata from pulseLegend2P.mat...")
+        pulseTifs,pulseTifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg = lib.mat2py.getPulsesFromLegend(
+            legendMat)
+    elif os.path.exists(legendCSV):
+        print("No _Pulses.mat or pulseLegend2P.mat found — reading pulse metadata from pulseLegend2P.csv...")
+        pulseTifs,pulseTifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg = lib.mat2py.getPulsesFromCSV(
+            legendCSV)
+    else:
+        raise FileNotFoundError(
+            f"No _Pulses.mat, pulseLegend2P.mat, or pulseLegend2P.csv found in {experimentDir}"
+        )
     
     # extend remaining params
     pulseTwoPidx,pulseFileTimesInstantiatePulse,pulseStarts,pulseNframes = [],[],[],[]
