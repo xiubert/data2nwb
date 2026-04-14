@@ -8,6 +8,23 @@ from roiextractors.extractors.tiffimagingextractors.scanimagetiff_utils import (
             parse_metadata,
         )
 
+def getSItifMetadata(tifFile: str, parse: bool = False) -> dict:
+    """
+    Extract metadata from a ScanImage .tif file.
+
+    Args:
+        tifFile (str): path to the .tif file
+        parse (bool): if True, pass raw metadata through parse_metadata to convert
+                      types and standardise keys (e.g. 'sampling_frequency',
+                      'frames_per_slice'); if False, return the raw string-valued
+                      header dict (e.g. 'epoch', 'fps'). Default False.
+
+    Returns:
+        dict: metadata key-value pairs from the ScanImage header
+    """
+    raw = extract_extra_metadata(file_path=tifFile)
+    return parse_metadata(raw) if parse else raw
+
 
 def getSItifTime(tifFile: str) -> datetime:
     """
