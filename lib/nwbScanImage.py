@@ -1,4 +1,3 @@
-
 import os
 import glob
 import re
@@ -26,7 +25,7 @@ from hdmf.backends.hdf5.h5_utils import H5DataIO
 Functions for generating standard NWB files for ScanImage experiments.
 """
 
-def setSubject(subject_id: str, age: str, species: str, 
+def setSubject(subject_id: str, age: str, species: str,
                sex: str, genotype: str,
                description: str):
     """
@@ -39,18 +38,10 @@ def setSubject(subject_id: str, age: str, species: str,
         sex (str): Single letter abbreviation, e.g., "F" (female), "M" (male), "U" (unknown), and "O" (other)
         genotype (str): genotype of subject eg. C57BL6/J or ZnT3KO
         description (str): informative description of subject
-    
+
     Returns:
         nwb Subject object
     """
-    # subject = Subject(
-    #     subject_id="AA0304",
-    #     age="P90D",
-    #     description="Injected on 4/7/21 with AAV9.CaMKII. GCaMP6f.WPRE.SV40 at 1:6 into right ACtx",
-    #     species="Mus musculus",
-    #     sex="M",
-    #     genotype="C57BL6/J",
-    # )
     subject = Subject(
         subject_id=subject_id,
         age=age,
@@ -70,17 +61,17 @@ def writeNWB(outputPath: str, nwbfile: NWBFile, overWrite: bool = True) -> bool:
     Args:
         outputPath (str):  File path for desired NWB output file.
         nwbfile: NWB file object to be written to disk.
-        overWrite (bool): Boolean to indicate whether or not 
+        overWrite (bool): Boolean to indicate whether or not
                           file should be overwriten if it exists
 
     Returns:
         bool: True if completed without error.
     """
     if os.path.exists(outputPath):
-        if overWrite==True:
+        if overWrite is True:
             os.remove(outputPath)
         else:
-            raise('file exists')
+            raise FileExistsError(f'{outputPath} exists and overWrite=False')
 
     with NWBHDF5IO(outputPath, "w") as io:
         io.write(nwbfile)
@@ -88,35 +79,35 @@ def writeNWB(outputPath: str, nwbfile: NWBFile, overWrite: bool = True) -> bool:
 
 
 def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
-                            subject: Subject,
-                            session_description: str,
-                            experiment_description: str,
-                            keywords: list[str],
-                            experimenter: str,
-                            related_publications: str,
-                            lab: str,
-                            institution: str,
-                            imaging_scopeDesc: str,
-                            imaging_manufacturer: str,
-                            imaging_opticalChannel0desc: str,
-                            imaging_emissionLambda: float,
-                            imagingPlane_rate: str,
-                            imagingPlane_desc: str,
-                            imagingPlane_excitationLambda: float,
-                            imagingPlane_loc: str,
-                            imagingPlane_indicator: str,
-                            imagingPlane_gridSpacing: list[float],
-                            imagingPlane_gridSpacingUnit: str,
-                            imagingPlane_originCoords: list[float],
-                            imagingPlane_originCoordsUnit: str,
-                            overWriteNWB: bool = True,
-                            motionCorrectedTifDir: str = 'NoRMCorred',
-                            returnNWB: bool = False
+                           subject: Subject,
+                           session_description: str,
+                           experiment_description: str,
+                           keywords: list,
+                           experimenter: str,
+                           related_publications: str,
+                           lab: str,
+                           institution: str,
+                           imaging_scopeDesc: str,
+                           imaging_manufacturer: str,
+                           imaging_opticalChannel0desc: str,
+                           imaging_emissionLambda: float,
+                           imagingPlane_rate: float,
+                           imagingPlane_desc: str,
+                           imagingPlane_excitationLambda: float,
+                           imagingPlane_loc: str,
+                           imagingPlane_indicator: str,
+                           imagingPlane_gridSpacing: list,
+                           imagingPlane_gridSpacingUnit: str,
+                           imagingPlane_originCoords: list,
+                           imagingPlane_originCoordsUnit: str,
+                           overWriteNWB: bool = True,
+                           motionCorrectedTifDir: str = 'NoRMCorred',
+                           returnNWB: bool = False
                            ) -> NWBFile:
     """
-    A simple function to generate a standardized NWB file for a 
-    given a given experiment directory (directory name assumed to match experiment ID).
-    Saves NWB tile to NWBoutputPath. Outputs NWB object if returnNWB True.
+    A simple function to generate a standardized NWB file for a
+    given experiment directory (directory name assumed to match experiment ID).
+    Saves NWB file to NWBoutputPath. Outputs NWB object if returnNWB True.
 
     Adds ophys, motion correction, ROI segmentation and traces, and stimulus metadata.
     Adds pupillometry if available.
@@ -124,7 +115,7 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     Session start assumed to be time of first recorded .tif (with lowest file number id, eg AA0304_0001.tif).
     """
     #%% set directories
-    experimentDir = os.path.join(dataPath,experimentID)
+    experimentDir = os.path.join(dataPath, experimentID)
     moCorrMat = f"{experimentID}_NoRMCorreParams.mat"
     fluorescenceMat = f"{experimentID}_tifFileList.mat"
 
@@ -133,28 +124,15 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     print(f"Generating standardized NWB file for {experimentID}")
 
     #%% get tif file list
-    # get tif creation date, end write time, and frame counts
     tifFileList, tifTypeList, treatment, _ = lib.mat2py.getTifList(
-        dataPath,experimentID,fluorescenceMat)
-    
+        dataPath, experimentID, fluorescenceMat)
+
     # ROI mat ([experimentID]_moCorrROI_all.mat) will always end in _all.mat if treatment is 'none'.
-    # If treatment (eg preZX1 and postZX1), there may be either one ROI mat for the whole session (ending in _all.mat) 
-    # or an ROI .mat for each treatment (eg. [experimentID]_moCorrROI_preZX1.mat and [experimentID]_moCorrROI_postZX1.mat)
-
-    # If treatment == 'none' (should be same for all .tif), then ROI mat will be called [experimentID]_moCorrROI_all.mat
-    # and keys in imaging_plane and ImageSegmentation will be called 'all'
-
-    # If multiple ROI sets / ROI change with time, must have different imaging_plane for each ROI set (via create_imaging_plane)
-
-    # TwoPhotonSeries must be associated with the corresponding imaging plane
-    # If multiple ROI .mat, there will be a separate ImageSegmentation (stored in plane_seg) for each,
-    # this will reference the corresponding imaging plane.
-    # ROI table regions are created for each ImageSegmentation (stored in plane_seg) and house
-    # ROI fluorescence data.
-    # Each RoiResponseSeries (eg fluorescence for a given .tif) is associated with the corresponding ROI table.
-    
+    # If treatment (eg preZX1 and postZX1), there may be either one ROI mat for the whole session
+    # (ending in _all.mat) or an ROI .mat for each treatment (eg. [experimentID]_moCorrROI_preZX1.mat
+    # and [experimentID]_moCorrROI_postZX1.mat)
     roiMatPat = f"{experimentID}_moCorrROI*.mat"
-    roiMats = glob.glob(os.path.join(experimentDir,roiMatPat))
+    roiMats = glob.glob(os.path.join(experimentDir, roiMatPat))
 
     if not roiMats:
         roiOutputMats = sorted(glob.glob(os.path.join(experimentDir, '*_roiOutput.mat')))
@@ -167,53 +145,49 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
             base_dir=experimentDir
         )]
 
-    if len(roiMats)==1 and os.path.basename(roiMats[0])==f"{experimentID}_moCorrROI_all.mat":
+    if len(roiMats) == 1 and os.path.basename(roiMats[0]) == f"{experimentID}_moCorrROI_all.mat":
         roiSet = ["all"]
-        tifROIset = roiSet*len(treatment)
-    elif len(roiMats)==1 and os.path.basename(roiMats[0]).endswith('_roiOutput.mat'):
+        tifROIset = roiSet * len(treatment)
+    elif len(roiMats) == 1 and os.path.basename(roiMats[0]).endswith('_roiOutput.mat'):
         roiSet = ["all"]
-        tifROIset = roiSet*len(treatment)
+        tifROIset = roiSet * len(treatment)
     else:
-        roiSet = [re.search(f"{experimentID}_moCorrROI_(.*).mat",roiMat).group(1) for roiMat in roiMats]
+        roiSet = [re.search(f"{experimentID}_moCorrROI_(.*).mat", roiMat).group(1) for roiMat in roiMats]
         tifROIset = treatment
 
     # get metadata from first tif for session start
-    session_start = lib.tifExtract.getSItifTime(os.path.join(experimentDir,tifFileList[0]))
+    session_start = lib.tifExtract.getSItifTime(os.path.join(experimentDir, tifFileList[0]))
 
     #%% NWB file generation
-    # instantiate
     nwbfile = NWBFile(
         session_description=session_description,
         identifier=str(uuid4()),
         session_start_time=session_start,
-        experimenter=[
-            experimenter,
-        ],
+        experimenter=[experimenter],
         lab=lab,
         institution=institution,
         experiment_description=experiment_description,
         keywords=keywords,
         related_publications=related_publications,
-        )
-    
-    # set subject
+    )
+
     nwbfile.subject = subject
-    
-    #set imaging plane
+
+    # set imaging plane
     device = nwbfile.create_device(
         name="Microscope",
         description=imaging_scopeDesc,
         manufacturer=imaging_manufacturer,
-        )
+    )
     optical_channel = OpticalChannel(
         name="OpticalChannel",
         description=imaging_opticalChannel0desc,
         emission_lambda=imaging_emissionLambda,
-        )
-    # filter FF03 525/50 (Semrock) --> 525 +/- 25 (center wavelength 525): 
+    )
+    # filter FF03 525/50 (Semrock) --> 525 +/- 25 (center wavelength 525):
     # https://www.idex-hs.com/store/product-detail/ff03_525_50_25/fl-004656
 
-    # if multiple ROI sets / ROI change with time, must have different imaging plane for each ROI set --> usually the case with pre/post treatment (ZX1)
+    # if multiple ROI sets / ROI change with time, must have different imaging plane for each ROI set
     imgPlane = {}
     for cond in roiSet:
         imgPlane[cond] = nwbfile.create_imaging_plane(
@@ -230,16 +204,14 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
             origin_coords=imagingPlane_originCoords,
             origin_coords_unit=imagingPlane_originCoordsUnit,
         )
-    # “Origin coordinates are relative to bregma. First dimension corresponds to anterior-posterior axis (larger index = more anterior). 
-    # Second dimension corresponds to medial-lateral axis (larger index = more rightward). 
-    # Third dimension corresponds to dorsal-ventral axis (larger index = more ventral).
 
     # set 2p series data
-    fileTimesInstantiate, nFrames, frameRates, starts = [],[],[],[]
+    fileTimesInstantiate, nFrames, frameRates, starts = [], [], [], []
     two_p_series = []
-    for i,tif in enumerate(tifFileList):
-        imgData,fileTimeInstantiate,frameCount,frameRate = lib.tifExtract.getSItifData(os.path.join(experimentDir,tif))
-        start = lib.tifExtract.secMicroSec2sec(fileTimeInstantiate-session_start)
+    for i, tif in enumerate(tifFileList):
+        imgData, fileTimeInstantiate, frameCount, frameRate = \
+            lib.tifExtract.getSItifData(os.path.join(experimentDir, tif))
+        start = lib.tifExtract.secMicroSec2sec(fileTimeInstantiate - session_start)
         two_p_ser = TwoPhotonSeries(
             name=f"TwoPhotonSeries_{i:03}",
             description="Raw 2P data",
@@ -261,18 +233,21 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     print("added 2P data")
 
     # add motion correction data
-    shifts,moCorrParams = lib.mat2py.getMoCorrShiftParams(os.path.join(experimentDir,motionCorrectedTifDir,moCorrMat),nFrames=nFrames)
+    shifts, moCorrParams = lib.mat2py.getMoCorrShiftParams(
+        os.path.join(experimentDir, motionCorrectedTifDir, moCorrMat),
+        nFrames=nFrames)
 
-    # add processing module to include motion corrected data
+    # ophys processing module
     ophys_module = nwbfile.create_processing_module(
         name="ophys", description="optical physiology processed data"
     )
     motion_correction = MotionCorrection(name='Motion Corrected TwoPhotonSeries')
 
-    for i,(tif,shift) in enumerate(zip(tifFileList,shifts)):
-        imgData = lib.tifExtract.getSItifData(os.path.join(experimentDir,
-                                                        motionCorrectedTifDir,
-                                                        tif.replace('.tif','_NoRMCorre.tif')),getMetadata=False)
+    for i, (tif, shift) in enumerate(zip(tifFileList, shifts)):
+        imgData = lib.tifExtract.getSItifData(
+            os.path.join(experimentDir, motionCorrectedTifDir,
+                         tif.replace('.tif', '_NoRMCorre.tif')),
+            getMetadata=False)
 
         corrected = ImageSeries(
             name="corrected",  # this must be named "corrected"
@@ -286,14 +261,14 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
         )
 
         xy_translation = TimeSeries(
-            name=f"xy_translation",
+            name="xy_translation",
             description=f"x,y translation in pixels for acquisition {i:03}",
             data=shift,
             unit="pixels",
             rate=frameRates[i],
             starting_time=starts[i],
-            control_description = (moCorrParams if i==0 else None),
-            comments=('control_description: NoRMCorreParams' if i==0 else ''),
+            control_description=(moCorrParams if i == 0 else None),
+            comments=('control_description: NoRMCorreParams' if i == 0 else ''),
         )
 
         motion_correction.add_corrected_image_stack(CorrectedImageStack(
@@ -305,39 +280,38 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     ophys_module.add(motion_correction)
     print("added motion correction data")
 
-
-    # add ROI via planeSegmentation
-    # - in experiment dir, ROI drawn on motion corrected data saved in [animal id]_moCorrROI_*.mat
-    # - if no treatment file takes name [animal id]_moCorrROI_all.mat
-    # - if more than one condition / treatment, image segmentation must be associated with a separate imaging plane
+    # ---- ROI segmentation + fluorescence container ----
+    # Both ImageSegmentation and Fluorescence are attached to the ophys
+    # processing module BEFORE any RoiResponseSeries / DynamicTableRegion is
+    # constructed, so HDMF's ancestor-chain validation passes cleanly.
     img_seg = ImageSegmentation()
     ophys_module.add(img_seg)
 
+    fl = Fluorescence()
+    ophys_module.add(fl)
+
     plane_seg = {}
     roiMasksPerCond = {}
-    # usually roiMat for each treatment
-    for roiMat,roiCond in zip(roiMats,roiSet):
-        # treatCond = ('none' if roiCond=='all' else roiCond)
-        roiIDs,roiMasks = lib.mat2py.getROImasks(roiMat)
+    for roiMat, roiCond in zip(roiMats, roiSet):
+        roiIDs, roiMasks = lib.mat2py.getROImasks(roiMat)
         roiMasksPerCond[roiCond] = roiMasks
 
         plane_seg[roiCond] = img_seg.create_plane_segmentation(
             name=f"PlaneSegmentation_{roiCond}",
             description=f"output from segmenting the imaging plane for {roiCond}",
-                imaging_plane=imgPlane[roiCond],
-                reference_images=[p for p,t in zip(two_p_series,tifROIset) if t==roiCond],  # optional
-            )
+            imaging_plane=imgPlane[roiCond],
+            reference_images=[p for p, t in zip(two_p_series, tifROIset) if t == roiCond],
+        )
 
-        for roiID,roiImageMask in zip(roiIDs,roiMasks):
-            # add image mask to plane segmentation
-            plane_seg[roiCond].add_roi(id=roiID,image_mask=roiImageMask)
+        for roiID, roiImageMask in zip(roiIDs, roiMasks):
+            plane_seg[roiCond].add_roi(id=roiID, image_mask=roiImageMask)
     print("added ROI segmentation data")
 
     # add fluorescence traces for ROIs
     fluoMatPath = os.path.join(experimentDir, fluorescenceMat)
     if os.path.exists(fluoMatPath):
-        fluoTif,fluoROI = lib.mat2py.getROIfluo(fluoMatPath)
-        fluoROI = [fluoROI[i] for i in np.where(np.isin(fluoTif,tifFileList))[0]]
+        fluoTif, fluoROI = lib.mat2py.getROIfluo(fluoMatPath)
+        fluoROI = [fluoROI[i] for i in np.where(np.isin(fluoTif, tifFileList))[0]]
     else:
         print("tifFileList not found — computing ROI fluorescence from motion-corrected tifs...")
         combined_masks = np.concatenate([roiMasksPerCond[c] for c in roiSet], axis=0)
@@ -347,29 +321,27 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
             tifDir=os.path.join(experimentDir, motionCorrectedTifDir),
         )
 
-    # roi fluorescence responses associated with a region, each region is associated with a plane segmentation (usually one per condition)
-    # which has corresponding IDs for the ROI - roiResponseSeries a linked to these planesegment IDs
-    roi_resp_series = []
+    # roi fluorescence responses associated with a region; each region linked to a plane segmentation
     for cond in plane_seg:
         rt_region = plane_seg[cond].create_roi_table_region(
-            region=list(range(len(plane_seg[cond].id.data))), description=f"ROI for {cond}"
-            )
+            region=list(range(len(plane_seg[cond].id.data))),
+            description=f"ROI for {cond}",
+        )
         # only get responses in the matching treatment condition
-        responses = [(i,fluo,start,fr) for i,(fluo,titfSet,start,fr) in enumerate(zip(fluoROI,tifROIset,starts,frameRates)) if titfSet==cond]
-        for i,fluo,start,fr in responses:
-            roi_resp_series.append(RoiResponseSeries(
+        responses = [(i, fluo, start, fr)
+                     for i, (fluo, titfSet, start, fr) in
+                     enumerate(zip(fluoROI, tifROIset, starts, frameRates))
+                     if titfSet == cond]
+        for i, fluo, start, fr in responses:
+            fl.create_roi_response_series(
                 name=f"RoiResponseSeries_{i:03}",
                 description=f"Fluorescence responses for motion corrected ROIs for TwoPhotonSeries_{i:03}",
                 data=fluo,
                 rois=rt_region,
                 unit="lumens",
                 rate=fr,
-                starting_time=start
-                ))
-    
-    # one fluorescence module, RoiResponseSeries is a list
-    fl = Fluorescence(roi_response_series=roi_resp_series)
-    ophys_module.add(fl)
+                starting_time=start,
+            )
     print('added fluorescence trace data for ROIs')
 
     # add sound stimulus data via DynamicTable
@@ -377,59 +349,55 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     legendMat = os.path.join(experimentDir, 'pulseLegend2P.mat')
     legendCSV = os.path.join(experimentDir, 'pulseLegend2P.csv')
     if pulsesMatFiles:
-        pulseTifs,pulseTifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg = lib.mat2py.getTifPulses(
-            dataPath,experimentID,tifFileList,tifTypeList)
+        (pulseTifs, pulseTifTypes, stimDelays, ISIs,
+         pulseNames, pulseSets, xsg) = lib.mat2py.getTifPulses(
+            dataPath, experimentID, tifFileList, tifTypeList)
     elif os.path.exists(legendMat):
         print("No _Pulses.mat files found — reading pulse metadata from pulseLegend2P.mat...")
-        pulseTifs,pulseTifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg = lib.mat2py.getPulsesFromLegend(
-            legendMat)
+        (pulseTifs, pulseTifTypes, stimDelays, ISIs,
+         pulseNames, pulseSets, xsg) = lib.mat2py.getPulsesFromLegend(legendMat)
     elif os.path.exists(legendCSV):
         print("No _Pulses.mat or pulseLegend2P.mat found — reading pulse metadata from pulseLegend2P.csv...")
-        pulseTifs,pulseTifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg = lib.mat2py.getPulsesFromCSV(
-            legendCSV)
+        (pulseTifs, pulseTifTypes, stimDelays, ISIs,
+         pulseNames, pulseSets, xsg) = lib.mat2py.getPulsesFromCSV(legendCSV)
     else:
         raise FileNotFoundError(
             f"No _Pulses.mat, pulseLegend2P.mat, or pulseLegend2P.csv found in {experimentDir}"
         )
-    
+
     # extend remaining params
-    pulseTwoPidx,pulseFileTimesInstantiatePulse,pulseStarts,pulseNframes = [],[],[],[]
-    pulseFrameRates,pulseTreatment = [],[]
+    pulseTwoPidx, pulseFileTimesInstantiatePulse, pulseStarts, pulseNframes = [], [], [], []
+    pulseFrameRates, pulseTreatment = [], []
     for tif in pulseTifs:
         tifIDX = tifFileList.index(tif)
         pulseTwoPidx.append(f"TwoPhotonSeries_{tifIDX:03}")
-        pulseFileTimesInstantiatePulse.append(fileTimesInstantiate[tifIDX].strftime('%Y-%m-%d %H:%M:%S.%f'))
+        pulseFileTimesInstantiatePulse.append(
+            fileTimesInstantiate[tifIDX].strftime('%Y-%m-%d %H:%M:%S.%f'))
         pulseStarts.append(starts[tifIDX])
         pulseNframes.append(nFrames[tifIDX])
         pulseFrameRates.append(frameRates[tifIDX])
         pulseTreatment.append(treatment[tifIDX])
-        
+
     stimData = {
-                'file': ('name of .tif file',pulseTifs),
-                'TwoPhotonSeries': ('TwoPhotonSeries index', pulseTwoPidx),
-                'fileTimeInstantiate': ('time .tif file was instantiated/created',
-                                    pulseFileTimesInstantiatePulse),
-                'starting_time': ('starting time of .tif in seconds from first .tif',pulseStarts),
-                'type': ('whether stim or mapping type', pulseTifTypes),
-                'nFrames': ('number of frames in .tif file',pulseNframes),
-                'frameRate': ('frame rate of .tif file',pulseFrameRates),
-                'treatment': ('treatment',pulseTreatment),
-                'pulseNames': ('sound stimulation pulse name',pulseNames),
-                'pulseSets': ('sound stimulation pulse set',pulseSets),
-                'ISI': ('ISI between pulses in seconds', ISIs),
-                'stimDelay': ('delay to start of pulses in seconds', stimDelays),
-                'xsg': ('associated .xsg file storing raw pulse data',xsg)
-                }
-        
+        'file': ('name of .tif file', pulseTifs),
+        'TwoPhotonSeries': ('TwoPhotonSeries index', pulseTwoPidx),
+        'fileTimeInstantiate': ('time .tif file was instantiated/created',
+                                pulseFileTimesInstantiatePulse),
+        'starting_time': ('starting time of .tif in seconds from first .tif', pulseStarts),
+        'type': ('whether stim or mapping type', pulseTifTypes),
+        'nFrames': ('number of frames in .tif file', pulseNframes),
+        'frameRate': ('frame rate of .tif file', pulseFrameRates),
+        'treatment': ('treatment', pulseTreatment),
+        'pulseNames': ('sound stimulation pulse name', pulseNames),
+        'pulseSets': ('sound stimulation pulse set', pulseSets),
+        'ISI': ('ISI between pulses in seconds', ISIs),
+        'stimDelay': ('delay to start of pulses in seconds', stimDelays),
+        'xsg': ('associated .xsg file storing raw pulse data', xsg)
+    }
+
     cols = []
-    for col,v in stimData.items():
-        cols.append(
-                VectorData(
-                name=col,
-                description=v[0],
-                data=v[1],
-            )
-        )
+    for col, v in stimData.items():
+        cols.append(VectorData(name=col, description=v[0], data=v[1]))
     stim_table = DynamicTable(
         name='stim param table',
         description='Maps sound stim parameters to .tif files',
@@ -440,68 +408,66 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     print('added stim table data')
 
     #%% add pupillometry
-    if (os.path.exists(os.path.join(experimentDir,pupilMat)) or 
-        os.path.exists(os.path.join(experimentDir,pupilMat.replace('_s.mat','.mat')))
-        ):
+    if (os.path.exists(os.path.join(experimentDir, pupilMat)) or
+        os.path.exists(os.path.join(experimentDir, pupilMat.replace('_s.mat', '.mat')))):
         print(f"found pupillometry data for {experimentID}")
 
         behavior_module = nwbfile.create_processing_module(
-                name="behavior", description="Processed behavioral data"
-            )
-        
-        # add pupil radius split by tif file
-        pupilDataProcessed = lib.mat2py.getPupilDataProcessed(os.path.join(experimentDir,pupilMat))
+            name="behavior", description="Processed behavioral data"
+        )
+
+        # ---- pupil radius split by tif file ----
+        # PupilTracking is created empty and attached to the behavior module
+        # before any of its child TimeSeries are constructed, matching the
+        # ordering used for Fluorescence above.
+        pupilDataProcessed = lib.mat2py.getPupilDataProcessed(os.path.join(experimentDir, pupilMat))
 
         # keep only those in tifList
-        pupilTifIDs,pupilFrameFiles = zip(*[(i,t.replace('.tif','_pupilFrames.mat')) for i,t in enumerate(tifFileList) 
-                                   if t.replace('.tif','_pupilFrames.mat') in pupilDataProcessed['pupilFrameFiles']])
-        pupilRadii = [r for r,p in zip(pupilDataProcessed['pupilRadius'],pupilDataProcessed['pupilFrameFiles']) 
-                    if p in pupilFrameFiles]
+        pupilTifIDs, pupilFrameFiles = zip(*[
+            (i, t.replace('.tif', '_pupilFrames.mat'))
+            for i, t in enumerate(tifFileList)
+            if t.replace('.tif', '_pupilFrames.mat') in pupilDataProcessed['pupilFrameFiles']
+        ])
+        pupilRadii = [r for r, p in zip(pupilDataProcessed['pupilRadius'],
+                                        pupilDataProcessed['pupilFrameFiles'])
+                      if p in pupilFrameFiles]
 
-        pupil_radii = []
-        for pupilTifID,pupilFrameFile,pupilRadius in zip(pupilTifIDs,pupilFrameFiles,pupilRadii):
-            pupil_radii.append(
-                TimeSeries(
-                    name=f"pupil_radius_{pupilTifID:03}",
-                    description=f"Pupil radius extracted from the video of the right eye for TwoPhotonSeries_{i:03}",
-                    data=pupilRadius,
-                    rate=float(pupilDataProcessed['frameRate']),
-                    starting_time=starts[pupilTifID],
-                    unit="na",
-                    comments=f"pupilFrameFile: {pupilFrameFile}, associated .tif file: {tifFileList[pupilTifID]}"
-                )
-            )
-
-        pupil_tracking = PupilTracking(time_series=pupil_radii, name="PupilTracking")
+        pupil_tracking = PupilTracking(name="PupilTracking")
         behavior_module.add(pupil_tracking)
-        print('added pupil radius data')
-        
-        # add pupil video
-        pupilVideoSeries = []
 
-        for pupilTifID,pupilFrameFile in zip(pupilTifIDs,pupilFrameFiles):
-            pupilVideoSeries.append(
-                ImageSeries(
-                    name=f"pupil_video_{pupilTifID:03}",
-                    description=f"Pupil video of the right eye for TwoPhotonSeries_{pupilTifID:03}",
-                    data=H5DataIO(data=lib.mat2py.getPupilImg(os.path.join(experimentDir,pupilFrameFile)), compression=True),
-                    rate=float(pupilDataProcessed['frameRate']),
-                    starting_time=starts[pupilTifID],
-                    unit="na",
-                    comments=f"pupilFrameFile: {pupilFrameFile}, associated .tif file: {tifFileList[pupilTifID]}"
-                )
+        for pupilTifID, pupilFrameFile, pupilRadius in zip(pupilTifIDs, pupilFrameFiles, pupilRadii):
+            pupil_tracking.create_timeseries(
+                name=f"pupil_radius_{pupilTifID:03}",
+                description=f"Pupil radius extracted from the video of the right eye for TwoPhotonSeries_{pupilTifID:03}",
+                data=pupilRadius,
+                rate=float(pupilDataProcessed['frameRate']),
+                starting_time=starts[pupilTifID],
+                unit="na",
+                comments=f"pupilFrameFile: {pupilFrameFile}, associated .tif file: {tifFileList[pupilTifID]}",
             )
-        behavior_module.add(pupilVideoSeries)
+        print('added pupil radius data')
+
+        # ---- pupil video ----
+        # Each ImageSeries is added individually to the behavior module
+        # (ProcessingModule.add expects a single container, not a list).
+        for pupilTifID, pupilFrameFile in zip(pupilTifIDs, pupilFrameFiles):
+            pupil_video = ImageSeries(
+                name=f"pupil_video_{pupilTifID:03}",
+                description=f"Pupil video of the right eye for TwoPhotonSeries_{pupilTifID:03}",
+                data=H5DataIO(
+                    data=lib.mat2py.getPupilImg(os.path.join(experimentDir, pupilFrameFile)),
+                    compression=True),
+                rate=float(pupilDataProcessed['frameRate']),
+                starting_time=starts[pupilTifID],
+                unit="na",
+                comments=f"pupilFrameFile: {pupilFrameFile}, associated .tif file: {tifFileList[pupilTifID]}",
+            )
+            behavior_module.add(pupil_video)
         print('added pupil video data')
 
     #%% write output
-    writeNWB(NWBoutputPath,nwbfile,overWrite=overWriteNWB)
+    writeNWB(NWBoutputPath, nwbfile, overWrite=overWriteNWB)
 
     print(f'NWB write success to: {NWBoutputPath}')
-    if returnNWB==True:
+    if returnNWB is True:
         return nwbfile
-
-
-
-
-
