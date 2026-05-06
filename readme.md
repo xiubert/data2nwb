@@ -161,18 +161,20 @@ Matches each `.tif` to `.xsg` files by creation timestamp. Default: each tif own
 
 #### 5. Pupillometry (optional)
 
-| Source | Notes |
-| --- | --- |
-| `{experimentID}_pulsePupilUVlegend2P_s.mat` | Pupil data saved as MATLAB struct. |
-| `{experimentID}_pulsePupilUVlegend2P.mat` | Pupil data saved as MATLAB table — convert first using `extra/tableMAT2StructMAT.m`. |
+Source: `{experimentID}_pulsePupilUVlegend2P_s.mat` — pupil data as a MATLAB struct (the `_s` suffix). If your data was saved as a MATLAB table (`{experimentID}_pulsePupilUVlegend2P.mat`, no `_s`), convert it first:
 
-If neither is present the pupillometry section is skipped silently.
+```matlab
+% in MATLAB, from extra/tableMAT2StructMAT.m
+tableMAT2StructMAT('/path/to/experimentDir')
+```
+
+If the `_s.mat` file is absent the pupillometry section is skipped silently.
 
 ---
 
 ## Widefield (qcamraw) to NWB
 
-Converts QImaging `.qcamraw` recordings to NWB using `OnePhotonSeries` (the correct NWB type for widefield fluorescence — carries `ImagingPlane`, indicator, excitation/emission wavelengths, etc.). One `.qcamraw` per recording; one rectangular ROI per condition.
+Converts QImaging `.qcamraw` recordings to NWB using `OnePhotonSeries` (the correct NWB type for widefield fluorescence — carries `ImagingPlane`, indicator, excitation/emission wavelengths, etc.). One `.qcamraw` per recording; one ROI mask per treatment.
 
 ### Running
 
@@ -188,7 +190,7 @@ Output: `{dataPath}/{experimentID}/{experimentID}_qcam_DANDI.nwb`.
 dataPath/
   CC0001/                              ← experimentID / subject_id
     CC0001*.qcamraw
-    CC0001*_qcamROI.json               (optional — one per .qcamraw, generated on first run)
+    CC0001*_qcamROI.json               (optional — one per .qcamraw, saved by interactive ROI selector)
     CC0001_qcamFileList.csv            (optional — see fallbacks below)
     CC0001*_Pulses.mat                 (optional — see fallbacks below)
     pulseLegendQcam.mat                (optional — see fallbacks below)
@@ -205,7 +207,7 @@ dataPath/
 
 #### 2. Session start time
 
-Read from the qcamraw header's `File_Init_Timestamp` field (QCapture format: `MM-DD-YYYY_HH:MM:SS`). Falls back to file mtime with a warning if no parseable timestamp is found. Override the field name via `qcam_timestamp_field` in the YAML config if your QCapture version uses a different key.
+Read from the qcamraw header's `File_Init_Timestamp` field (QCapture format: `MM-DD-YYYY_HH:MM:SS`). Falls back to file mtime with a warning if no parseable timestamp is found. If your QCapture version uses a different header key, add `qcam_timestamp_field: YourKeyName` to the `qcam:` section of the YAML config.
 
 > **Note on timezones:** the header timestamp carries no timezone. The implementation attaches local time. For DANDI uploads where absolute wall-clock time matters, ensure the conversion machine's timezone matches acquisition, or modify `lib/qcamraw.py:get_qcamraw_start_time`.
 
@@ -234,7 +236,7 @@ CC0001AAAA0004.qcamraw,postZX1,map
 | 2 | `{basename}_qcamROI.json` next to each `.qcamraw` | `{"roi": [row1, row2, col1, col2]}`, inclusive bounds. |
 | 3 | Interactive matplotlib `RectangleSelector` | Drawn on the spatial dF/F map; falls back to the first frame if the recording is too short. Saves a sidecar JSON for re-runs. |
 
-One ROI per condition. The first `.qcamraw` of each condition is used to resolve the ROI mask, applied to all files in that condition. To use per-file rectangular ROIs, pre-populate one `_qcamROI.json` next to each `.qcamraw`.
+One ROI per treatment. The first `.qcamraw` of each treatment is used to resolve the ROI mask, applied to all files in that treatment. When no joblib mask is present and you want per-file rectangular ROIs, pre-populate one `_qcamROI.json` next to each `.qcamraw`.
 
 #### 5. Pulse / stimulus metadata
 
