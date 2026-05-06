@@ -192,7 +192,8 @@ def genNWBfromQcamraw_pc(
         movie, _ = read_qcamraw(os.path.join(experimentDir, qcam_files[idx]))
         _, mask, _ = load_or_select_roi(
             os.path.join(experimentDir, qcam_files[idx]),
-            movie, qcam_frameRate, qcam_cfg)
+            movie, qcam_frameRate, qcam_cfg,
+            condition=cond)
         masks_per_cond[cond] = mask
         del movie
     print('resolved ROIs')

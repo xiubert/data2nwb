@@ -230,10 +230,11 @@ CC0001AAAA0004.qcamraw,postZX1,map
 
 | Priority | Source | Notes |
 | --- | --- | --- |
-| 1 | `{basename}_qcamROI.json` next to each `.qcamraw` | `{"roi": [row1, row2, col1, col2]}`, inclusive bounds. |
-| 2 | Interactive matplotlib `RectangleSelector` | Drawn on the spatial dF/F map; falls back to the first frame if the recording is too short. Saves a sidecar JSON for re-runs. |
+| 1 | `*response_mask*.joblib` in the experiment directory | `joblib.load()` returns a 2-D boolean numpy array matching the frame shape. Condition-specific file (filename contains `pre`/`post` or the condition name) takes priority over a general mask. `*contour*` files are excluded. |
+| 2 | `{basename}_qcamROI.json` next to each `.qcamraw` | `{"roi": [row1, row2, col1, col2]}`, inclusive bounds. |
+| 3 | Interactive matplotlib `RectangleSelector` | Drawn on the spatial dF/F map; falls back to the first frame if the recording is too short. Saves a sidecar JSON for re-runs. |
 
-One ROI per condition. The first `.qcamraw` of each condition is used to draw the ROI, applied to all files in that condition. To use per-file ROIs, pre-populate one `_qcamROI.json` next to each `.qcamraw`.
+One ROI per condition. The first `.qcamraw` of each condition is used to resolve the ROI mask, applied to all files in that condition. To use per-file rectangular ROIs, pre-populate one `_qcamROI.json` next to each `.qcamraw`.
 
 #### 5. Pulse / stimulus metadata
 
