@@ -1,4 +1,4 @@
-tif,type,pulseName,pulseSet,stimDelay,ISI,xsg,condition
+tif,type,pulseName,pulseSet,stimDelay,ISI,xsg,treatment
 CC0001AAAA0001.qcamraw,stim,11892Hz_70dB_TestTone_400msPulse_at_3s_10msRamp_10000msTotal_Fs250kHz,PC_TestTones_transcranial,3,0,CC0001AAAA0001.xsg,CTRL
 CC0001AAAA0002.qcamraw,stim,5612Hz_60dB_TestTone_400msPulse_at_3s_10msRamp_10000msTotal_Fs250kHz,PC_TestTones_transcranial,3,0,CC0001AAAA0002.xsg,CTRL
 CC0001AAAA0003.qcamraw,stim,11892Hz_70dB_TestTone_400msPulse_at_3s_10msRamp_10000msTotal_Fs250kHz,PC_TestTones_transcranial,3,0,CC0001AAAA0003.xsg,CTRL

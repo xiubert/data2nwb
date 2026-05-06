@@ -651,7 +651,7 @@ def getTifPulses(dataPath: str, experimentID: str, tifList: list[str], tifTypeLi
         xsg (list[str]): each element indicates associated .xsg file(s) for assocaited .tif
     """
     tifs, tifTypes = [],[]
-    stimDelays, ISIs, pulseNames, pulseSets, xsg, conditions = [],[],[],[],[],[]
+    stimDelays, ISIs, pulseNames, pulseSets, xsg, treatments = [],[],[],[],[],[]
 
     for tif,tifType in zip(tifList,tifTypeList):
         pulseParams,pulse = getPulses(os.path.join(dataPath,experimentID,tif),tifType)
@@ -669,7 +669,7 @@ def getTifPulses(dataPath: str, experimentID: str, tifList: list[str], tifTypeLi
             stimDelays.extend(stimDelay)
             tifs.extend(tif)
             tifTypes.extend(tifType)
-            conditions.extend(['' for _ in pulseName])
+            treatments.extend(['' for _ in pulseName])
 
         else:
             tifs.append(tif)
@@ -679,9 +679,9 @@ def getTifPulses(dataPath: str, experimentID: str, tifList: list[str], tifTypeLi
             pulseSets.append((np.unique(pulseSet)[0] if len(np.unique(pulseSet))==1 else pulseSet))
             ISIs.append(pulseParams['ISI'])
             stimDelays.append(pulseParams['stimDelay'])
-            conditions.append('')
+            treatments.append('')
 
-    return tifs, tifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg, conditions
+    return tifs, tifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg, treatments
 
 
 def getPulsesFromLegend(legendMatPath: str) -> tuple:
@@ -720,17 +720,21 @@ def getPulsesFromLegend(legendMatPath: str) -> tuple:
         stimDelays = [float(np.array(h5[r]).flat[0]) for r in legend['stimDelay'][0]]
         ISIs       = [float(np.array(h5[r]).flat[0]) for r in legend['ISI'][0]]
 
+        # read treatment field; fall back to condition for old MAT files
         try:
-            conditions_raw = getH5stringList(legend['condition'][0], h5)
+            treatments_raw = getH5stringList(legend['treatment'][0], h5)
         except (KeyError, Exception):
-            conditions_raw = [''] * len(tifs)
+            try:
+                treatments_raw = getH5stringList(legend['condition'][0], h5)
+            except (KeyError, Exception):
+                treatments_raw = [''] * len(tifs)
 
         # expand map entries to one row per pulse/xsg, matching getTifPulses behaviour
         out_tifs, out_types, out_delays, out_isis = [], [], [], []
-        out_names, out_sets, out_xsg, out_conditions = [], [], [], []
+        out_names, out_sets, out_xsg, out_treatments = [], [], [], []
 
-        for tif, stimDelay, ISI, cond, name_ref, set_ref, xsg_ref in zip(
-                tifs, stimDelays, ISIs, conditions_raw,
+        for tif, stimDelay, ISI, treat, name_ref, set_ref, xsg_ref in zip(
+                tifs, stimDelays, ISIs, treatments_raw,
                 legend['pulseName'][0], legend['pulseSet'][0], legend['xsg'][0]):
 
             xsg_strings   = _resolve_strings(xsg_ref,  h5)
@@ -751,9 +755,9 @@ def getPulsesFromLegend(legendMatPath: str) -> tuple:
             out_names.extend(pulse_names)
             out_sets.extend(pulse_sets)
             out_xsg.extend([_basename(s) for s in xsg_strings])
-            out_conditions.extend([cond] * n)
+            out_treatments.extend([treat] * n)
 
-    return out_tifs, out_types, out_delays, out_isis, out_names, out_sets, out_xsg, out_conditions
+    return out_tifs, out_types, out_delays, out_isis, out_names, out_sets, out_xsg, out_treatments
 
 
 def getPulsesFromCSV(csvPath: str) -> tuple:
@@ -773,7 +777,7 @@ def getPulsesFromCSV(csvPath: str) -> tuple:
         tifs, tifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg
         matching the format returned by getTifPulses
     """
-    tifs, tifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg, conditions = [], [], [], [], [], [], [], []
+    tifs, tifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg, treatments = [], [], [], [], [], [], [], []
 
     with open(csvPath, newline='') as f:
         reader = csv.DictReader(f)
@@ -785,8 +789,9 @@ def getPulsesFromCSV(csvPath: str) -> tuple:
             pulseNames.append(row['pulseName'])
             pulseSets.append(row['pulseSet'])
             xsg.append(row['xsg'])
-            conditions.append(row.get('condition', ''))
+            # read 'treatment'; fall back to 'condition' for old CSVs
+            treatments.append(row.get('treatment', row.get('condition', '')))
 
-    return tifs, tifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg, conditions
+    return tifs, tifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg, treatments
 
 

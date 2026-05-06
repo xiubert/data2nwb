@@ -193,7 +193,7 @@ def genNWBfromQcamraw_pc(
         _, mask, _ = load_or_select_roi(
             os.path.join(experimentDir, qcam_files[idx]),
             movie, qcam_frameRate, qcam_cfg,
-            condition=cond)
+            treatment=cond)
         masks_per_cond[cond] = mask
         del movie
     print('resolved ROIs')
@@ -298,11 +298,11 @@ def _add_stim_table(nwbfile, experimentDir,
     if os.path.exists(legendMat):
         print('reading pulse metadata from pulseLegendQcam.mat')
         (pulseFiles, pulseTypes, stimDelays, ISIs,
-         pulseNames, pulseSets, xsg, conditions) = lib.mat2py.getPulsesFromLegend(legendMat)
+         pulseNames, pulseSets, xsg, treatments_pl) = lib.mat2py.getPulsesFromLegend(legendMat)
     elif os.path.exists(legendCSV):
         print('reading pulse metadata from pulseLegendQcam.csv')
         (pulseFiles, pulseTypes, stimDelays, ISIs,
-         pulseNames, pulseSets, xsg, conditions) = lib.mat2py.getPulsesFromCSV(legendCSV)
+         pulseNames, pulseSets, xsg, treatments_pl) = lib.mat2py.getPulsesFromCSV(legendCSV)
     else:
         # No pulse metadata: write file inventory only, with NaN floats
         # (homogeneous column types so DynamicTable / NWBInspector are happy).
@@ -315,10 +315,10 @@ def _add_stim_table(nwbfile, experimentDir,
         pulseNames = [''] * n
         pulseSets = [''] * n
         xsg = [''] * n
-        conditions = [''] * n
+        treatments_pl = list(treatments)  # use file list treatments as fallback
 
     # cross-reference every pulse row to an acquisition (strict match)
-    acq_idx, acq_starts, acq_nframes, acq_treatment = [], [], [], []
+    acq_idx, acq_starts, acq_nframes = [], [], []
     for f in pulseFiles:
         try:
             i = qcam_files.index(f)
@@ -330,7 +330,6 @@ def _add_stim_table(nwbfile, experimentDir,
         acq_idx.append(f'OnePhotonSeries_{i:03}')
         acq_starts.append(float(starts_rel[i]))
         acq_nframes.append(int(nframes[i]))
-        acq_treatment.append(treatments[i])
 
     stimData = {
         'file':            ('name of .qcamraw file', list(pulseFiles)),
@@ -341,8 +340,7 @@ def _add_stim_table(nwbfile, experimentDir,
         'nFrames':         ('number of frames in file', acq_nframes),
         'frameRate':       ('frame rate of file',
                             [float(frame_rate)] * len(pulseFiles)),
-        'treatment':       ('treatment', acq_treatment),
-        'condition':       ('experimental condition', list(conditions)),
+        'treatment':       ('treatment', list(treatments_pl)),
         'pulseNames':      ('sound stimulation pulse name', list(pulseNames)),
         'pulseSets':       ('sound stimulation pulse set', list(pulseSets)),
         'ISI':             ('ISI between pulses (s)', list(ISIs)),

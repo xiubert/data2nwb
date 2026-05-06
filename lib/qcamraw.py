@@ -205,13 +205,13 @@ def mean_fluo_in_roi_vectorised(movie, masks):
     return ((img_flat @ mask_bool) / mask_sums).astype(np.float64)
 
 
-def _find_joblib_mask(exp_dir, condition=''):
+def _find_joblib_mask(exp_dir, treatment=''):
     """Return a joblib ROI mask array from exp_dir, or None if absent.
 
     Priority:
-      1. *response_mask*.joblib whose filename contains the condition key
-         ('post' / 'pre' derived from condition, or the condition itself)
-      2. Any *response_mask*.joblib (general, no condition specificity)
+      1. *response_mask*.joblib whose filename contains the treatment key
+         ('post' / 'pre' derived from treatment, or the treatment itself)
+      2. Any *response_mask*.joblib (general, no treatment specificity)
 
     *contour* files are excluded to match the signalProcess.py convention.
     """
@@ -231,20 +231,20 @@ def _find_joblib_mask(exp_dir, condition=''):
     if not all_masks:
         return None
 
-    if condition:
-        cond_lower = condition.lower()
-        if 'post' in cond_lower:
-            cond_key = 'post'
-        elif 'pre' in cond_lower:
-            cond_key = 'pre'
+    if treatment:
+        treat_lower = treatment.lower()
+        if 'post' in treat_lower:
+            treat_key = 'post'
+        elif 'pre' in treat_lower:
+            treat_key = 'pre'
         else:
-            cond_key = cond_lower
+            treat_key = treat_lower
 
-        cond_masks = [f for f in all_masks
-                      if cond_key in os.path.basename(f).lower()]
-        if cond_masks:
-            path = sorted(cond_masks)[0]
-            print(f'  joblib ROI mask (condition={condition!r}): '
+        treat_masks = [f for f in all_masks
+                       if treat_key in os.path.basename(f).lower()]
+        if treat_masks:
+            path = sorted(treat_masks)[0]
+            print(f'  joblib ROI mask (treatment={treatment!r}): '
                   f'{os.path.basename(path)}')
             return joblib.load(path)
 
@@ -254,24 +254,24 @@ def _find_joblib_mask(exp_dir, condition=''):
 
 
 def load_or_select_roi(qcamraw_path, movie, fr, cfg,
-                       condition='', save=True):
+                       treatment='', save=True):
     """Resolve ROI for a qcamraw file via fallback ladder:
 
       1. *response_mask*.joblib in the experiment directory
-         (condition-specific first, then general)
+         (treatment-specific first, then general)
       2. {basename}_qcamROI.json sidecar
       3. Interactive matplotlib RectangleSelector — on the spatial dF/F map
          if the recording timing supports it, otherwise on the first frame
          (matches the .tif branch of meanFluoROIvt.m)
 
     Returns (roi_tuple_or_None, mask, reference_image_or_None)
-    For joblib and JSON sources roi_tuple is returned; for joblib roi_tuple
-    is None (mask is already a full 2-D array, not a rectangular bounding box).
+    For joblib sources roi_tuple is None (mask is a full 2-D array, not a
+    rectangular bounding box). For JSON and interactive sources it is a tuple.
     """
     exp_dir = os.path.dirname(qcamraw_path)
     h, w = movie.shape[1:]
 
-    joblib_mask = _find_joblib_mask(exp_dir, condition=condition)
+    joblib_mask = _find_joblib_mask(exp_dir, treatment=treatment)
     if joblib_mask is not None:
         mask = joblib_mask.astype(bool)
         if mask.shape != (h, w):

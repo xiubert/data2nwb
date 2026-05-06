@@ -230,7 +230,7 @@ CC0001AAAA0004.qcamraw,postZX1,map
 
 | Priority | Source | Notes |
 | --- | --- | --- |
-| 1 | `*response_mask*.joblib` in the experiment directory | `joblib.load()` returns a 2-D boolean numpy array matching the frame shape. Condition-specific file (filename contains `pre`/`post` or the condition name) takes priority over a general mask. `*contour*` files are excluded. |
+| 1 | `*response_mask*.joblib` in the experiment directory | `joblib.load()` returns a 2-D boolean numpy array matching the frame shape. Treatment-specific file (filename contains `pre`/`post` or the treatment name) takes priority over a general mask. `*contour*` files are excluded. |
 | 2 | `{basename}_qcamROI.json` next to each `.qcamraw` | `{"roi": [row1, row2, col1, col2]}`, inclusive bounds. |
 | 3 | Interactive matplotlib `RectangleSelector` | Drawn on the spatial dF/F map; falls back to the first frame if the recording is too short. Saves a sidecar JSON for re-runs. |
 
@@ -292,7 +292,7 @@ Shared column format for both pipelines. One row per pulse/xsg. Map files appear
 | `stimDelay` | float | Delay to stimulus onset in seconds |
 | `ISI` | float | Inter-stimulus interval in seconds |
 | `xsg` | string | Associated `.xsg` file basename |
-| `condition` | string | Experimental condition label (e.g. `preZX1`, `postZX1`); blank if not applicable |
+| `treatment` | string | Treatment label (e.g. `preZX1`, `postZX1`, `CTRL`); blank if not applicable |
 
 ---
 

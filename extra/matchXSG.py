@@ -191,7 +191,7 @@ def matchFilesToXSGs(exp_dir: str, pattern: str = '*.tif',
                 'stimDelay': '',
                 'ISI':       '',
                 'xsg':       xsg_path.name,
-                'condition': '',
+                'treatment': '',
             })
 
     return rows
@@ -229,7 +229,7 @@ def main():
         sys.exit(1)
 
     out_path = args.output or _default_output(args.exp_dir, args.pattern)
-    fieldnames = ['tif', 'type', 'pulseName', 'pulseSet', 'stimDelay', 'ISI', 'xsg', 'condition']
+    fieldnames = ['tif', 'type', 'pulseName', 'pulseSet', 'stimDelay', 'ISI', 'xsg', 'treatment']
 
     with open(out_path, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)

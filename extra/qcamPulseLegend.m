@@ -41,7 +41,7 @@ for f = 1:length(pulses)
     % --- params fields ---
     pulses(f).stimDelay  = params.stimDelay;
     pulses(f).ISI        = params.ISI;
-    pulses(f).condition  = '';
+    pulses(f).treatment  = '';
 
     % --- pulse fields ---
     if size(pulse, 2) > 1
