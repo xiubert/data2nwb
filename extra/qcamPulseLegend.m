@@ -1,12 +1,13 @@
-function pulseLegend2P = tifPulseLegend2P(tif2Pdir, saveFile)
-% tifPulseLegend2P  Build a pulse legend struct array from *_Pulses.mat files.
+function pulseLegendQcam = qcamPulseLegend(qcamDir, saveFile)
+% qcamPulseLegend  Build a pulse legend struct array from *_Pulses.mat files
+%                  for a widefield qcamraw experiment.
 %
-%   pulseLegend2P = tifPulseLegend2P(tif2Pdir)
-%   pulseLegend2P = tifPulseLegend2P(tif2Pdir, saveFile)
+%   pulseLegendQcam = qcamPulseLegend(qcamDir)
+%   pulseLegendQcam = qcamPulseLegend(qcamDir, saveFile)
 %
-%   Scans tif2Pdir for *_Pulses.mat files and extracts pulse metadata.
+%   Scans qcamDir for *_Pulses.mat files and extracts pulse metadata.
 %   Fields added per entry:
-%     tif        - corresponding .tif filename
+%     file       - .qcamraw basename (imaging file key)
 %     pulseName  - pulse name (trimmed of trailing _N index for single pulses)
 %     pulseSet   - pulse set name
 %     stimDelay  - stimulus delay (s) from params
@@ -14,23 +15,26 @@ function pulseLegend2P = tifPulseLegend2P(tif2Pdir, saveFile)
 %     xsg        - associated .xsg file(s): string for single pulse,
 %                  cell array of strings for map (multi-pulse) files
 %
-%   saveFile (optional): true/false whether to save pulseLegend2P as
-%                        pulseLegend2P.mat in tif2Pdir (default: false).
+%   saveFile (optional): true/false whether to save pulseLegendQcam as
+%                        pulseLegendQcam.mat in qcamDir (default: false).
+%
+%   If *_Pulses.mat files are absent, use matchXSG.py --pattern "*.qcamraw"
+%   to generate pulseLegendQcam.csv from .xsg timestamps instead.
 
 if nargin < 2
     saveFile = false;
 end
 
-if ~isfolder(tif2Pdir)
-    warning('tifPulseLegend2P: directory does not exist — select manually.')
-    tif2Pdir = uigetdir();
+if ~isfolder(qcamDir)
+    warning('qcamPulseLegend: directory does not exist — select manually.')
+    qcamDir = uigetdir();
 end
 
-dList = dir(tif2Pdir);
+dList = dir(qcamDir);
 pulses = dList(contains({dList.name}, '_Pulses.mat'));
 
 for f = 1:length(pulses)
-    pulses(f).tif = strrep(pulses(f).name, '_Pulses.mat', '.tif');
+    pulses(f).file = strrep(pulses(f).name, '_Pulses.mat', '.qcamraw');
 
     load(fullfile(pulses(f).folder, pulses(f).name), 'pulse', 'params')
 
@@ -59,10 +63,10 @@ for f = 1:length(pulses)
     clear pulse params
 end
 
-pulseLegend2P = pulses;
+pulseLegendQcam = pulses;
 
 if saveFile
-    saveName = fullfile(tif2Pdir, 'pulseLegend2P.mat');
-    save(saveName, 'pulseLegend2P', '-v7.3')
+    saveName = fullfile(qcamDir, 'pulseLegendQcam.mat');
+    save(saveName, 'pulseLegendQcam', '-v7.3')
     disp(['Saved: ' saveName])
 end

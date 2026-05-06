@@ -51,7 +51,7 @@ experiments['keywords'] = experiments['keywords'].apply(ast.literal_eval)
 for experimentID,d in experiments.iterrows():
     print(f"processing: {experimentID}...")
 
-    outputNWBpath = os.path.join(dataPath,experimentID,f"{experimentID}_DANDI.nwb")
+    outputNWBpath = os.path.join(dataPath,experimentID,f"{experimentID}_2P_DANDI.nwb")
 
     subject = lib.nwbScanImage.setSubject(
         subject_id=experimentID,

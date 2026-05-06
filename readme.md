@@ -1,80 +1,47 @@
-# data2nwb — ScanImage 2P ophys to NWB converter
+# data2nwb — ScanImage 2P & QImaging widefield ophys to NWB converter
 
-Converts ScanImage two-photon calcium imaging data (with optional pupillometry) to [NWB](https://www.nwb.org/) format for upload to [DANDI](https://dandiarchive.org/).
+Converts calcium imaging data to [NWB](https://www.nwb.org/) format for upload to [DANDI](https://dandiarchive.org/).
+
+Two pipelines are provided, sharing subject/experiment metadata:
+
+- **`scanimage2nwb.py`** — ScanImage two-photon `.tif` data (with motion correction, optional pupillometry).
+- **`qcam2nwb.py`** — QImaging widefield epifluorescence `.qcamraw` data, written as `OnePhotonSeries`.
 
 ---
 
 ## Setup
 
 1. Clone the repository and change into it:
+
    ```bash
    git clone https://github.com/xiubert/data2nwb.git
    cd data2nwb
    ```
+
 2. Create and activate a virtual environment:
+
    ```bash
    python -m venv env
    source env/bin/activate          # unix
    env\Scripts\activate.bat         # Windows
    ```
+
 3. Install dependencies:
+
    ```bash
    pip install -r requirements.txt
    ```
 
 ---
 
-## Running
+## Shared metadata
 
-Experimenter and imaging parameters are configured via YAML files in `configs/`.  
-`configs/params_PC.yaml` contains settings used in Cody et al 2024 (doi: 10.1523/JNEUROSCI.0939-23.2024).  
-`configs/params_general.yaml` is a blank template — copy, fill in, and pass as `--config`.
-
-```bash
-# all defaults (./data/animalList.csv, ./data/experimentMetadata.csv, ./configs/params_PC.yaml)
-python scanimage2nwb.py /path/to/data
-
-# custom paths
-python scanimage2nwb.py /path/to/data \
-    --subjects  /path/to/animalList.csv \
-    --experiments /path/to/experimentMetadata.csv \
-    --config ./configs/my_params.yaml
-```
-
-Scripts can also be run within a Python notebook (`scanimage2nwb.ipynb`).  
-Output is one `.nwb` file per experiment, written to `{dataPath}/{experimentID}/{experimentID}_DANDI.nwb`.
-
----
-
-## Data directory structure
-
-`dataPath` must be the top-level directory containing one folder per subject, named by `subject_id`:
-
-```
-dataPath/
-  AA0001/          ← experimentID / subject_id
-    AA0001*.tif
-    NoRMCorred/
-      AA0001*_NoRMCorre.tif
-      AA0001_NoRMCorreParams.mat
-    AA0001_moCorrROI_all.mat   (or AA0001*_roiOutput.mat)
-    AA0001_tifFileList.mat     (optional — see fallbacks below)
-    AA0001*_Pulses.mat         (optional — see fallbacks below)
-  AA0002/
-  ...
-```
-
----
-
-## Subject and experiment metadata CSVs
-
-Stored in `data/` by default. See `data/animalList.csv` and `data/experimentMetadata.csv` for examples.  
-`subject_id` must match across both CSVs and the corresponding data folder name.
+Both pipelines read subject and experiment metadata from CSVs stored in `data/` by default. See `data/animalList.csv` and `data/experimentMetadata.csv` for examples. `subject_id` must match across both CSVs and the corresponding data folder name.
 
 **`animalList.csv`** — one row per subject:
 
 | Column | Required | Description |
-|--------|----------|-------------|
+| --- | --- | --- |
 | `subject_id` | yes | Animal identifier; must match `experimentID` and data folder name |
 | `age` | yes | Age at experiment in days (integer); written as `P{age}D` (ISO 8601) |
 | `sex` | yes | `M` or `F` |
@@ -85,139 +52,268 @@ Stored in `data/` by default. See `data/animalList.csv` and `data/experimentMeta
 **`experimentMetadata.csv`** — one row per experiment:
 
 | Column | Required | Description |
-|--------|----------|-------------|
+| --- | --- | --- |
 | `subject_id` | yes | Must match `animalList.csv` and data folder name |
-| `session_description` | yes | Short session label(s); use ` \| ` to separate multiple |
-| `experiment_description` | yes | Full description(s); use ` \| ` to separate multiple |
+| `session_description` | yes | Short session label(s); use `\|` to separate multiple |
+| `experiment_description` | yes | Full description(s); use `\|` to separate multiple |
 | `keywords` | yes | Python list literal, e.g. `"['2P', 'DRC', 'pupillometry']"` |
 
 ---
 
-## Required files per pipeline stage and fallback paths
+## 2P (ScanImage) to NWB
+
+### Running
+
+Experimenter and imaging parameters are configured via a YAML file in `configs/`.
+
+- `configs/params_PC.yaml` — settings used in Cody et al 2024 (doi: 10.1523/JNEUROSCI.0939-23.2024).
+- `configs/params_general.yaml` — blank template.
+
+```bash
+python scanimage2nwb.py /path/to/data
+
+# with custom metadata and config paths
+python scanimage2nwb.py /path/to/data \
+    --subjects    /path/to/animalList.csv \
+    --experiments /path/to/experimentMetadata.csv \
+    --config      ./configs/my_params.yaml
+```
+
+Can also be run from `scanimage2nwb.ipynb`. Output: `{dataPath}/{experimentID}/{experimentID}_2P_DANDI.nwb`.
+
+### Data directory structure
+
+`dataPath` must be the top-level directory containing one folder per subject, named by `subject_id`.
+
+```
+dataPath/
+  AA0001/                        ← experimentID / subject_id
+    AA0001*.tif
+    NoRMCorred/
+      AA0001*_NoRMCorre.tif
+      AA0001_NoRMCorreParams.mat
+    AA0001_moCorrROI_all.mat     (or AA0001*_roiOutput.mat)
+    AA0001_tifFileList.mat       (optional — see fallbacks below)
+    AA0001*_Pulses.mat           (optional — see fallbacks below)
+    pulseLegend2P.mat            (optional — see fallbacks below)
+    pulseLegend2P.csv            (optional — see fallbacks below)
+  AA0002/
+  ...
+```
+
+### File sources and fallbacks
 
 Each stage tries sources in priority order, falling back to the next if the preferred file is absent.
 
----
-
-### 1. Tif file list, treatment, and frame counts
+#### 1. Tif file list, treatment, and frame counts
 
 Determines which `.tif` files belong to the experiment, their treatment label (e.g. `preZX1`, `postZX1`), tif type (`stim` / `map`), and frame counts.
 
 | Priority | Source | Notes |
-|----------|--------|-------|
+| --- | --- | --- |
 | 1 | `{experimentID}_tifFileList.mat` | Generated by [matlabPAC_process2P](https://github.com/xiubert/matlabPAC_process2P). Contains full metadata. |
-| 2 | Interactive scan of `{experimentID}*.tif` files in the experiment directory | Prompts for treatment name, pre/post assignment, and mapping file selection. Frame counts read from tif metadata. Uses a GUI dialog if a display is available; otherwise falls back to numbered terminal prompts supporting range syntax (e.g. `1-5,7,9`). |
+| 2 | Interactive scan of `{experimentID}*.tif` files | Prompts for treatment name, pre/post assignment, and mapping file selection. Frame counts read from tif metadata. Uses a GUI dialog if a display is available; otherwise terminal prompts supporting range syntax (e.g. `1-5,7,9`). |
 
----
-
-### 2. ROI masks
+#### 2. ROI masks
 
 | Priority | Source | Notes |
-|----------|--------|-------|
-| 1 | `{experimentID}_moCorrROI*.mat` | Legacy MATLAB output. Single `_all.mat` → one ROI set for all conditions; multiple files → one per treatment condition. |
-| 2 | `*_roiOutput.mat` (interactive selection) | Newer format; ROI struct at `fluo2p.roi`. If multiple files are present, a selection dialog is shown. Treated as equivalent to `_moCorrROI_all.mat` (single ROI set). |
+| --- | --- | --- |
+| 1 | `{experimentID}_moCorrROI*.mat` | Legacy MATLAB output. Single `_all.mat` → one ROI set; multiple files → one per treatment. |
+| 2 | `*_roiOutput.mat` | Newer format; ROI struct at `fluo2p.roi`. Treated as equivalent to `_moCorrROI_all.mat`. |
 
----
-
-### 3. ROI fluorescence traces
+#### 3. ROI fluorescence traces
 
 Mean fluorescence per ROI per frame, shape `(nFrames × nROIs)` per tif.
 
 | Priority | Source | Notes |
-|----------|--------|-------|
-| 1 | `{experimentID}_tifFileList.mat` | Pre-computed `moCorRawFroi` traces stored by matlabPAC_process2P. |
-| 2 | Motion-corrected tifs in `{motionCorrectedTifDir}/` | Computed directly from `{tif}_NoRMCorre.tif` files using ROI masks. Mean pixel value within each mask is calculated per frame via vectorised matrix multiply. |
+| --- | --- | --- |
+| 1 | `{experimentID}_tifFileList.mat` | Pre-computed `moCorRawFroi` traces. |
+| 2 | Motion-corrected tifs in `{motionCorrectedTifDir}/` | Computed directly from `{tif}_NoRMCorre.tif` files using ROI masks via vectorised matrix multiply. |
+
+#### 4. Pulse / stimulus metadata
+
+Maps sound stimulus parameters to each `.tif` file. One row per pulse/xsg (map tifs expand to one row per stimulus).
+
+| Priority | Source | Notes |
+| --- | --- | --- |
+| 1 | `{experimentID}*_Pulses.mat` (one per recording) | Written automatically by [2PCI_setup](https://github.com/xiubert/2PCI_setup). Full per-pulse metadata. |
+| 2 | `pulseLegend2P.mat` | Run `extra/tifPulseLegend2P.m` — requires `*_Pulses.mat` files. Aggregated struct saved as `-v7.3`. |
+| 3 | `pulseLegend2P.csv` | Create manually from `example_data/pulseLegend2P_example.csv`, or generate with `extra/matchXSG.py`. `stimDelay` / `ISI` are blank when generated — fill manually. |
+
+See [Pulse legend format](#pulse-legend-format) for column definitions.
+
+**Generating `pulseLegend2P.mat` (MATLAB):**
+
+```matlab
+pulseLegend2P = tifPulseLegend2P('/path/to/experimentDir', true);   % scan and save
+pulseLegend2P = tifPulseLegend2P('/path/to/experimentDir');          % scan only
+```
+
+**Generating `pulseLegend2P.csv` (Python):**
+
+```bash
+python extra/matchXSG.py /path/to/experiment/dir
+```
+
+Matches each `.tif` to `.xsg` files by creation timestamp. Default: each tif owns all `.xsg` files between its start time and the next tif's start time (one `.xsg` → `stim`; more → `map`, one row per `.xsg`). With `--one-per-file`, only the nearest `.xsg` at or after each tif is matched. `stimDelay` and `ISI` are not in the `.xsg` header and will be blank — fill manually if needed.
+
+> **Note:** `lib.mat2py.getPulsesFromCSV` calls `float()` on `stimDelay` / `ISI` unconditionally, so blank values will raise. Fill them before running.
+
+#### 5. Pupillometry (optional)
+
+| Source | Notes |
+| --- | --- |
+| `{experimentID}_pulsePupilUVlegend2P_s.mat` | Pupil data saved as MATLAB struct. |
+| `{experimentID}_pulsePupilUVlegend2P.mat` | Pupil data saved as MATLAB table — convert first using `extra/tableMAT2StructMAT.m`. |
+
+If neither is present the pupillometry section is skipped silently.
 
 ---
 
-### 4. Pulse / stimulus metadata
+## Widefield (qcamraw) to NWB
 
-Maps sound stimulus parameters to each `.tif` file. One row per pulse/xsg file (map tifs expand to one row per stimulus).
+Converts QImaging `.qcamraw` recordings to NWB using `OnePhotonSeries` (the correct NWB type for widefield fluorescence — carries `ImagingPlane`, indicator, excitation/emission wavelengths, etc.). One `.qcamraw` per recording; one rectangular ROI per condition.
 
-| Priority | Source | How to generate | Notes |
-|----------|--------|-----------------|-------|
-| 1 | `{experimentID}*_Pulses.mat` (one per tif) | Automatic — written by [2PCI_setup](https://github.com/xiubert/2PCI_setup) ScanImage/Ephus integration. | Full per-pulse metadata including individual pulse names. |
-| 2 | `pulseLegend2P.mat` in experiment directory | Run `extra/tifPulseLegend2P.m` in MATLAB — requires `*_Pulses.mat` files (see below). | Aggregated struct array saved as `-v7.3`. Useful when re-running the Python pipeline without re-reading individual `*_Pulses.mat` files. |
-| 3 | `pulseLegend2P.csv` in experiment directory | Create manually from `data/pulseLegend2P_example.csv`, or generate with `extra/matchTifXSG.py` when `*_Pulses.mat` files are absent (see below). | Plain CSV; no MATLAB required. `stimDelay` and `ISI` are blank when generated by `matchTifXSG.py` — fill manually if needed. |
-
-If none of the above are found, a `FileNotFoundError` is raised.
-
-#### Generating `pulseLegend2P.mat` from `*_Pulses.mat` files (MATLAB)
-
-`extra/tifPulseLegend2P.m` scans the experiment directory for `*_Pulses.mat` files and builds an aggregated struct. Requires the individual `*_Pulses.mat` files to be present.
-
-```matlab
-% scan directory and save output
-pulseLegend2P = tifPulseLegend2P('/path/to/experimentDir', true);
-
-% scan without saving
-pulseLegend2P = tifPulseLegend2P('/path/to/experimentDir');
-```
-
-The function extracts per-tif: `pulseName`, `pulseSet`, `stimDelay`, `ISI`, and `xsg` (all individual pulse entries for map files).
-
-#### Generating `pulseLegend2P.csv` from `.xsg` files (Python)
-
-When `*_Pulses.mat` files were never created, `extra/matchTifXSG.py` matches `.tif` files to Ephus `.xsg` files by creation timestamp and extracts `pulseName` and `pulseSet` directly from the `.xsg` headers.
+### Running
 
 ```bash
-python extra/matchTifXSG.py /path/to/experiment/dir
-
-# custom tif glob pattern
-python extra/matchTifXSG.py /path/to/experiment/dir --tif-pattern "CC0002AAAA*.tif"
-
-# one xsg per tif (stim only — skips map expansion)
-python extra/matchTifXSG.py /path/to/experiment/dir --one-per-tif
+python qcam2nwb.py /path/to/data --config ./configs/params_qcam.yaml
 ```
 
-Default matching: each tif owns all `.xsg` files created at or after its start time and before the next tif's start time; one `.xsg` → `type = stim`, more than one → `type = map` (one row per `.xsg`, tif repeated). With `--one-per-tif`, only the nearest `.xsg` at or after each tif is matched, always `type = stim`.
+Output: `{dataPath}/{experimentID}/{experimentID}_qcam_DANDI.nwb`.
 
-`stimDelay` and `ISI` are not stored in the `.xsg` header and will be blank in the output — fill manually if needed.
+### Data directory structure
 
-#### `pulseLegend2P.csv` format
+```
+dataPath/
+  CC0001/                              ← experimentID / subject_id
+    CC0001*.qcamraw
+    CC0001*_qcamROI.json               (optional — one per .qcamraw, generated on first run)
+    CC0001_qcamFileList.csv            (optional — see fallbacks below)
+    CC0001*_Pulses.mat                 (optional — see fallbacks below)
+    pulseLegendQcam.mat                (optional — see fallbacks below)
+    pulseLegendQcam.csv                (optional — see fallbacks below)
+  CC0002/
+  ...
+```
 
-One row per pulse/xsg. Map tifs appear on multiple rows (one per associated xsg file). See `data/pulseLegend2P_example.csv` for a template.
+### File sources and fallbacks
+
+#### 1. Frame rate
+
+`.qcamraw` headers do not store frame rate. Set `qcam_frameRate` in the YAML config; this must match `imagingPlane_rate`. The writer raises if they disagree.
+
+#### 2. Session start time
+
+Read from the qcamraw header's `File_Init_Timestamp` field (QCapture format: `MM-DD-YYYY_HH:MM:SS`). Falls back to file mtime with a warning if no parseable timestamp is found. Override the field name via `qcam_timestamp_field` in the YAML config if your QCapture version uses a different key.
+
+> **Note on timezones:** the header timestamp carries no timezone. The implementation attaches local time. For DANDI uploads where absolute wall-clock time matters, ensure the conversion machine's timezone matches acquisition, or modify `lib/qcamraw.py:get_qcamraw_start_time`.
+
+#### 3. File list and treatment
+
+| Priority | Source | Notes |
+| --- | --- | --- |
+| 1 | `{experimentID}_qcamFileList.csv` | Columns: `file`, `treatment`, `type`. One row per `.qcamraw`. |
+| 2 | Glob of `{experimentID}*.qcamraw` | All files assigned `treatment='none'`, `type='stim'`. |
+
+Example `{experimentID}_qcamFileList.csv`:
+
+```csv
+file,treatment,type
+CC0001AAAA0001.qcamraw,preZX1,stim
+CC0001AAAA0002.qcamraw,preZX1,stim
+CC0001AAAA0003.qcamraw,postZX1,stim
+CC0001AAAA0004.qcamraw,postZX1,map
+```
+
+#### 4. ROI selection
+
+| Priority | Source | Notes |
+| --- | --- | --- |
+| 1 | `{basename}_qcamROI.json` next to each `.qcamraw` | `{"roi": [row1, row2, col1, col2]}`, inclusive bounds. |
+| 2 | Interactive matplotlib `RectangleSelector` | Drawn on the spatial dF/F map; falls back to the first frame if the recording is too short. Saves a sidecar JSON for re-runs. |
+
+One ROI per condition. The first `.qcamraw` of each condition is used to draw the ROI, applied to all files in that condition. To use per-file ROIs, pre-populate one `_qcamROI.json` next to each `.qcamraw`.
+
+#### 5. Pulse / stimulus metadata
+
+| Priority | Source | Notes |
+| --- | --- | --- |
+| 1 | `pulseLegendQcam.mat` | Run `extra/qcamPulseLegend.m` — requires `*_Pulses.mat` files alongside each `.qcamraw`. Aggregated struct saved as `-v7.3`. |
+| 2 | `pulseLegendQcam.csv` | Run `extra/matchXSG.py --pattern "*.qcamraw"`, or create manually. `stimDelay` / `ISI` are blank when generated — fill manually. |
+| 3 | *(none found)* | Inventory-only stim table (one row per `.qcamraw`, NaN for `stimDelay` / `ISI`, empty strings for `pulseName` / `pulseSet` / `xsg`). Structurally valid; passes nwbinspector. |
+
+See [Pulse legend format](#pulse-legend-format) for column definitions.
+
+**Generating `pulseLegendQcam.mat` (MATLAB, when `*_Pulses.mat` files are present):**
+
+```matlab
+pulseLegendQcam = qcamPulseLegend('/path/to/experimentDir', true);   % scan and save
+pulseLegendQcam = qcamPulseLegend('/path/to/experimentDir');          % scan only
+```
+
+**Generating `pulseLegendQcam.csv` (Python, from `.xsg` timestamps):**
+
+```bash
+python extra/matchXSG.py /path/to/experiment/dir --pattern "CC0001*.qcamraw"
+
+# one xsg per file (always stim, no map expansion)
+python extra/matchXSG.py /path/to/experiment/dir --pattern "CC0001*.qcamraw" --one-per-file
+```
+
+> **Note:** `lib.mat2py.getPulsesFromCSV` calls `float()` on `stimDelay` / `ISI` unconditionally, so blank values will raise. Fill them before running.
+
+### Smoke-testing the writer
+
+Before running against new data, validate with a single `.qcamraw` file:
+
+```bash
+python -m extra.qcam_smoke_test /path/to/file.qcamraw --fr 20
+
+# also run nwbinspector against the output
+python -m extra.qcam_smoke_test /path/to/file.qcamraw --fr 20 --inspect
+```
+
+Catches header-format drift between QCapture versions, pixel-ordering issues, and DANDI compliance problems before they appear in a batch run.
+
+---
+
+## Pulse legend format
+
+Shared column format for both pipelines. One row per pulse/xsg. Map files appear on multiple rows (one per associated xsg). See `example_data/pulseLegend2P_example.csv` (2P) and `example_data/pulseLegendQcam_example.csv` (qcamraw) for templates.
 
 | Column | Type | Description |
-|--------|------|-------------|
-| `tif` | string | `.tif` filename (basename only) |
+| --- | --- | --- |
+| `tif` | string | `.tif` or `.qcamraw` basename (imaging file key) |
 | `type` | `stim` \| `map` | Single stimulus or BF mapping file |
 | `pulseName` | string | Pulse name |
 | `pulseSet` | string | Pulse set name |
 | `stimDelay` | float | Delay to stimulus onset in seconds |
 | `ISI` | float | Inter-stimulus interval in seconds |
 | `xsg` | string | Associated `.xsg` file basename |
-
----
-
-### 5. Pupillometry (optional)
-
-| Source | Notes |
-|--------|-------|
-| `{experimentID}_pulsePupilUVlegend2P_s.mat` | Pupil data saved as MATLAB struct. |
-| `{experimentID}_pulsePupilUVlegend2P.mat` | Pupil data saved as MATLAB table — requires conversion to struct first using `extra/tableMAT2StructMAT.m`. |
-
-If neither is present the pupillometry section is skipped silently.
+| `condition` | string | Experimental condition label (e.g. `preZX1`, `postZX1`); blank if not applicable |
 
 ---
 
 ## Validating and exploring NWB output
 
 Validate against DANDI standards:
+
 ```bash
 pip install -U nwbinspector
-nwbinspector "{experimentID}_DANDI.nwb" --config dandi
+nwbinspector "{experimentID}_{2P|qcam}_DANDI.nwb" --config dandi
 ```
 
 Explore interactively in the browser:
+
 ```bash
 pip install --upgrade neurosift
-neurosift view-nwb "{experimentID}_DANDI.nwb"
+neurosift view-nwb "{experimentID}_{2P|qcam}_DANDI.nwb"
 ```
 
 ---
 
 ## Related repositories
 
-- [matlabPAC_process2P](https://github.com/xiubert/matlabPAC_process2P) — MATLAB pipeline that produces `_tifFileList.mat`, `_moCorrROI*.mat`, and `_NoRMCorreParams.mat`
-- [2PCI_setup](https://github.com/xiubert/2PCI_setup) — ScanImage / Ephus settings for stamping per-tif pulse and pupillometry metadata
+- [matlabPAC_process2P](https://github.com/xiubert/matlabPAC_process2P) — MATLAB pipeline that produces `_tifFileList.mat`, `_moCorrROI*.mat`, `_NoRMCorreParams.mat`, and contains the `meanFluoROIvt.m` GUI that the qcamraw ROI workflow mirrors.
+- [2PCI_setup](https://github.com/xiubert/2PCI_setup) — ScanImage / Ephus settings for stamping per-tif pulse and pupillometry metadata.

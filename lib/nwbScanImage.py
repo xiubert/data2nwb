@@ -350,16 +350,16 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     legendCSV = os.path.join(experimentDir, 'pulseLegend2P.csv')
     if pulsesMatFiles:
         (pulseTifs, pulseTifTypes, stimDelays, ISIs,
-         pulseNames, pulseSets, xsg) = lib.mat2py.getTifPulses(
+         pulseNames, pulseSets, xsg, conditions) = lib.mat2py.getTifPulses(
             dataPath, experimentID, tifFileList, tifTypeList)
     elif os.path.exists(legendMat):
         print("No _Pulses.mat files found — reading pulse metadata from pulseLegend2P.mat...")
         (pulseTifs, pulseTifTypes, stimDelays, ISIs,
-         pulseNames, pulseSets, xsg) = lib.mat2py.getPulsesFromLegend(legendMat)
+         pulseNames, pulseSets, xsg, conditions) = lib.mat2py.getPulsesFromLegend(legendMat)
     elif os.path.exists(legendCSV):
         print("No _Pulses.mat or pulseLegend2P.mat found — reading pulse metadata from pulseLegend2P.csv...")
         (pulseTifs, pulseTifTypes, stimDelays, ISIs,
-         pulseNames, pulseSets, xsg) = lib.mat2py.getPulsesFromCSV(legendCSV)
+         pulseNames, pulseSets, xsg, conditions) = lib.mat2py.getPulsesFromCSV(legendCSV)
     else:
         raise FileNotFoundError(
             f"No _Pulses.mat, pulseLegend2P.mat, or pulseLegend2P.csv found in {experimentDir}"
@@ -367,8 +367,8 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
 
     # extend remaining params
     pulseTwoPidx, pulseFileTimesInstantiatePulse, pulseStarts, pulseNframes = [], [], [], []
-    pulseFrameRates, pulseTreatment = [], []
-    for tif in pulseTifs:
+    pulseFrameRates, pulseTreatment, pulseConditions = [], [], []
+    for tif, cond in zip(pulseTifs, conditions):
         tifIDX = tifFileList.index(tif)
         pulseTwoPidx.append(f"TwoPhotonSeries_{tifIDX:03}")
         pulseFileTimesInstantiatePulse.append(
@@ -377,6 +377,7 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
         pulseNframes.append(nFrames[tifIDX])
         pulseFrameRates.append(frameRates[tifIDX])
         pulseTreatment.append(treatment[tifIDX])
+        pulseConditions.append(cond)
 
     stimData = {
         'file': ('name of .tif file', pulseTifs),
@@ -388,6 +389,7 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
         'nFrames': ('number of frames in .tif file', pulseNframes),
         'frameRate': ('frame rate of .tif file', pulseFrameRates),
         'treatment': ('treatment', pulseTreatment),
+        'condition': ('experimental condition', pulseConditions),
         'pulseNames': ('sound stimulation pulse name', pulseNames),
         'pulseSets': ('sound stimulation pulse set', pulseSets),
         'ISI': ('ISI between pulses in seconds', ISIs),

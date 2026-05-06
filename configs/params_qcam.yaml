@@ -1,0 +1,30 @@
+# YAML config for qcam2nwb.py — epifluorescence (.qcamraw) pipeline.
+
+nwb_file:
+  experimenter: "LastName, FirstName"
+  related_publications: ""
+  lab: "YourLab"
+  institution: "Your Institution"
+
+imaging:
+  imaging_scopeDesc: "Widefield epifluorescence macroscope, QImaging Retiga sCMOS"
+  imaging_manufacturer: "QImaging"
+  imaging_opticalChannel0desc: "Emission filter FF03 525/50 (Semrock)"
+  imaging_emissionLambda: 525.0     # nm
+  imagingPlane_rate: 20.0           # Hz — must match qcam_frameRate
+  imagingPlane_desc: "Widefield epifluorescence imaging of right ACtx"
+  imagingPlane_excitationLambda: 470.0   # nm (blue LED for GCaMP)
+  imagingPlane_loc: "right auditory cortex"
+  imagingPlane_indicator: "GCaMP6f"
+  imagingPlane_gridSpacing: [10.0, 10.0]   # placeholder µm/px — measure for your rig
+  imagingPlane_gridSpacingUnit: "micrometers"
+  imagingPlane_originCoords: [0.0, 0.0, 0.0]
+  imagingPlane_originCoordsUnit: "millimeters"
+
+qcam:
+  qcam_frameRate: 20.0
+  qcam_baseline: [2.0, 3.0]
+  qcam_filtOrder: 4
+  qcam_filtCutoffFreq: 5.0
+  qcam_stimlen: 0.4
+  qcam_temporalAvgFrameWindow: 10
