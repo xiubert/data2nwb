@@ -48,29 +48,46 @@ experiments = pd.read_csv(args.experiments)
 experiments = experiments.set_index('subject_id')
 experiments['keywords'] = experiments['keywords'].apply(ast.literal_eval)
 
+succeeded, failed = [], []
 for experimentID,d in experiments.iterrows():
-    print(f"processing: {experimentID}...")
+    print(f"\nprocessing: {experimentID}...")
 
     outputNWBpath = os.path.join(dataPath,experimentID,f"{experimentID}_2P_DANDI.nwb")
 
-    subject = lib.nwbScanImage.setSubject(
-        subject_id=experimentID,
-        age=f"P{subjects.loc[experimentID]['age']}D",
-        species="Mus musculus",
-        sex=subjects.loc[experimentID]['sex'],
-        genotype=subjects.loc[experimentID]['genotype'],
-        description=subjects.loc[experimentID]['description']
-    )
-
-    lib.nwbScanImage.genNWBfromScanImage_pc(
-        experimentID=experimentID,
-        dataPath=dataPath,
-        NWBoutputPath=outputNWBpath,
-        subject=subject,
-        session_description=d['session_description'],
-        experiment_description=d['experiment_description'],
-        keywords=d['keywords'],
-        **cfg['nwb_file'],
-        **cfg['imaging'],
-        **cfg.get('dataProcessing', {}),
+    try:
+        subject = lib.nwbScanImage.setSubject(
+            subject_id=experimentID,
+            age=f"P{subjects.loc[experimentID]['age']}D",
+            species="Mus musculus",
+            sex=subjects.loc[experimentID]['sex'],
+            genotype=subjects.loc[experimentID]['genotype'],
+            description=subjects.loc[experimentID]['description']
         )
+
+        lib.nwbScanImage.genNWBfromScanImage_pc(
+            experimentID=experimentID,
+            dataPath=dataPath,
+            NWBoutputPath=outputNWBpath,
+            subject=subject,
+            session_description=d['session_description'],
+            experiment_description=d['experiment_description'],
+            keywords=d['keywords'],
+            **cfg['nwb_file'],
+            **cfg['imaging'],
+            **cfg.get('dataProcessing', {}),
+            )
+        succeeded.append(experimentID)
+    except Exception as e:
+        # Surface the error with full context but keep going so a single
+        # subject's missing/inconsistent data doesn't block the others.
+        import traceback
+        print(f"  ERROR converting {experimentID}: {type(e).__name__}: {e}")
+        traceback.print_exc()
+        failed.append((experimentID, f"{type(e).__name__}: {e}"))
+
+print(f"\n=== summary ===")
+print(f"succeeded ({len(succeeded)}): {', '.join(succeeded) or '(none)'}")
+if failed:
+    print(f"failed ({len(failed)}):")
+    for s, msg in failed:
+        print(f"  - {s}: {msg.splitlines()[0]}")

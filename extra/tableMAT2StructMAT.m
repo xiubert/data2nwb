@@ -5,7 +5,7 @@
 
 clearvars
 close all
-filePath = "/media/DATA/backups/sutter2P_backup/D_drive/ZnT3_pupil/BIN1";
+filePath = "/media/DATA/backups/sutter2P_backup/D_drive/Cody_et_al_2024";
 
 aDir = dir(filePath);
 aDir = aDir(cell2mat({aDir.isdir}));

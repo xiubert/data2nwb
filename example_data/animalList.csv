@@ -1,3 +1,4 @@
 subject_id,DOB,age,genotype,sex,virus,injection_date,dilution,description
 CC0001,12/13/21,99,SOM-cre,M,AAV9.CaMKII.GCaMP6f.WPRE.SV40,1/14/22,1:6,Injected on 1/14/22 with AAV9.CaMKII.GCaMP6f.WPRE.SV40 at 1:6 into right ACtx
 CC0002,12/13/21,100,SOM-cre,M,AAV9.CaMKII.GCaMP6f.WPRE.SV40,1/14/22,1:6,Injected on 1/14/22 with AAV9.CaMKII.GCaMP6f.WPRE.SV40 at 1:6 into right ACtx
+AA0337,12/13/21,99,C57Bl6J,M,AAV9.CaMKII.GCaMP6f.WPRE.SV40,1/14/22,1:6,Injected on 1/14/22 with AAV9.CaMKII.GCaMP6f.WPRE.SV40 at 1:6 into right ACtx

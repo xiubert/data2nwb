@@ -62,6 +62,65 @@ Both pipelines read subject and experiment metadata from CSVs stored in `data/` 
 
 ---
 
+## Example dataset
+
+A small test dataset covering the major code paths is available [on SharePoint](https://pitt.sharepoint.com/:f:/r/sites/TzounopoulosLab/Shared%20Documents/data/data_standardization/ophys/example_data?csf=1&web=1&e=d8XiWZ). The directory contains three subjects, with subject and experiment metadata already filled in at `example_data/animalList.csv` and `example_data/experimentMetadata.csv` (matching `subject_id` values).
+
+| Subject | Pipelines | What it demonstrates |
+| --- | --- | --- |
+| `CC0001` | 2P + qcam | Full upstream data: `_tifFileList.mat`, `_moCorrROI_all.mat`, per-tif `_Pulses.mat`, `pulseLegendQcam.csv`. Exercises the priority-1 source at every fallback ladder. |
+| `CC0002` | 2P + qcam | No `_Pulses.mat`, no `_tifFileList.mat`. On a graphical machine the 2P pipeline prompts interactively for treatment / map-file assignment; on a headless machine it raises `FileNotFoundError` with instructions for creating `_tifFileList.csv`. To run non-interactively, copy the templates from `CC0002/tifFileList_example/` and `CC0002/pulseLegendExamples/` up one level into the experiment directory. |
+| `AA0337` | 2P with pupillometry | Full 2P data plus `_pulsePupilUVlegend2P_s.mat` and per-tif `_pupilFrames.mat` — exercises the pupillometry code path. The two qcamraw files have no ROI sidecar, so qcam-on-AA0337 raises an actionable `FileNotFoundError` on a headless machine; create `_qcamROI.json` per qcamraw to enable that path, or skip AA0337 in the qcam metadata. |
+
+### Running both pipelines
+
+Each script iterates every subject in the metadata CSV. Per-subject failures are caught and reported in a summary at the end so a single broken subject never blocks the others. Set `dataPath` to the unzipped parent directory containing the three subject folders:
+
+```bash
+# 2P pipeline → {nwb_test}/{subject}/{subject}_2P_DANDI.nwb
+python scanimage2nwb.py /path/to/nwb_test \
+    --subjects    example_data/animalList.csv \
+    --experiments example_data/experimentMetadata.csv \
+    --config      configs/params_PC.yaml
+
+# qcam pipeline → {nwb_test}/{subject}/{subject}_qcam_DANDI.nwb
+python qcam2nwb.py /path/to/nwb_test \
+    --subjects    example_data/animalList.csv \
+    --experiments example_data/experimentMetadata.csv \
+    --config      configs/params_qcam.yaml
+```
+
+On a fresh dataset in a headless environment, the expected outcome is:
+
+| Pipeline | Succeeds | Fails (with actionable instructions) |
+| --- | --- | --- |
+| 2P    | `CC0001`, `AA0337` | `CC0002` — needs `_tifFileList.csv` (template at `CC0002/tifFileList_example/`) |
+| qcam  | `CC0001`, `CC0002` | `AA0337` — needs per-qcamraw `_qcamROI.json` |
+
+On a graphical machine, the failing subjects fall through to interactive prompts (treatment / pre-post selection for 2P; ROI rectangle drawing for qcam) and convert successfully.
+
+Validate any output:
+
+```bash
+nwbinspector /path/to/nwb_test/CC0001/CC0001_2P_DANDI.nwb --config dandi
+```
+
+### Structural test suite
+
+The `tests/` directory contains pytest-compatible scripts (`test_2p.py`, `test_qcam.py`) that run each pipeline for `CC0001` and assert structural correctness — column presence, series counts, ROI segmentation, motion correction, fluorescence trace counts, `fileTimeInstantiate` parseability, and nwbinspector compliance under DANDI config. Point them at the unzipped dataset via the `DATA2NWB_TEST_DATA` env var:
+
+```bash
+export DATA2NWB_TEST_DATA=/path/to/nwb_test
+
+pytest tests/                  # if pytest installed
+python tests/test_qcam.py      # or run standalone
+python tests/test_2p.py
+```
+
+If `DATA2NWB_TEST_DATA` is unset the tests look in a hardcoded developer location and skip cleanly when absent.
+
+---
+
 ## 2P (ScanImage) to NWB
 
 ### Running
@@ -156,6 +215,8 @@ Mean fluorescence per ROI per frame, shape `(nFrames × nROIs)` per tif.
 #### 4. Pulse / stimulus metadata
 
 Maps sound stimulus parameters to each `.tif` file. One row per pulse/xsg (map tifs expand to one row per stimulus).
+
+> **Strict match required:** every imaging file referenced in the pulse legend must also appear in the tif file list (section 1). The writer raises `ValueError` on the first mismatch. The reverse is not required — a tif present in the file list but absent from the pulse legend simply won't appear in the NWB stim table. If you supply a `_tifFileList.csv` covering only a subset of tifs, trim the pulse legend to that subset accordingly.
 
 | Priority | Source | Notes |
 | --- | --- | --- |
@@ -263,9 +324,11 @@ One ROI per treatment. The first `.qcamraw` of each treatment is used to resolve
 
 #### 5. Pulse / stimulus metadata
 
+> **Strict match required:** every `.qcamraw` referenced in the pulse legend must also appear in the qcam file list (section 3). The writer raises `ValueError` on the first mismatch. The reverse is not required.
+
 | Priority | Source | Notes |
 | --- | --- | --- |
-| 1 | `*_Pulses.mat` (one per `.qcamraw`) | Read directly via `lib.mat2py.getPulsesPerFile`. Same format as the 2P `_Pulses.mat` files; treatments are backfilled from the qcam file list. |
+| 1 | `*_Pulses.mat` (one per `.qcamraw`) | Read directly via `lib.mat2py.getPulsesPerFile`. Triggers only when every `.qcamraw` has its own companion `_Pulses.mat`. Treatments are backfilled from the qcam file list. |
 | 2 | `pulseLegendQcam.mat` | Run `extra/qcamPulseLegend.m` — aggregates `*_Pulses.mat` into a single struct saved as `-v7.3`. |
 | 3 | `pulseLegendQcam.csv` | Run `extra/matchXSG.py --pattern "*.qcamraw"`, or create manually. `stimDelay` / `ISI` are blank when generated — fill manually. |
 | 4 | *(none found)* | Inventory-only stim table (one row per `.qcamraw`, NaN for `stimDelay` / `ISI`, empty strings for `pulseName` / `pulseSet` / `xsg`). Structurally valid; passes nwbinspector. |

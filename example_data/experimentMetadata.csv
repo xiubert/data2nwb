@@ -1,3 +1,4 @@
 subject_id,session_description,experiment_description,keywords
-CC0001,offset control,DRC sound offset control,"['2P', 'DRC']"
-CC0002,offset control,DRC sound offset control,"['2P', 'DRC']"
+CC0001,offset control,Figure 1m; DRC sound offset control,"['2P', 'DRC']"
+CC0002,offset control,Figure 1m; DRC sound offset control,"['2P', 'DRC']"
+AA0337,pupil contrast,Figure 4; pupil re contrast WT,"['2P', 'DRC', 'pupil']"

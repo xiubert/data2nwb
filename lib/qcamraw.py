@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 import numpy as np
 from scipy.signal import butter, filtfilt
 
+from lib.mat2py import _interactive_environment_available
+
 
 # -------------------------------------------------------------------- I/O ----
 
@@ -288,6 +290,23 @@ def load_or_select_roi(qcamraw_path, movie, fr, cfg,
         with open(sidecar) as f:
             roi = tuple(json.load(f)['roi'])
         return roi, rect_to_image_mask(roi, h, w), None
+
+    # No joblib mask, no sidecar — interactive selection is the last resort.
+    # In headless contexts (no DISPLAY, no TTY) raise an actionable error
+    # rather than letting matplotlib fail opaquely.
+    if not _interactive_environment_available():
+        raise FileNotFoundError(
+            f"\nCannot resolve ROI for {os.path.basename(qcamraw_path)}.\n"
+            f"  No *response_mask*.joblib in {exp_dir or '.'}\n"
+            f"  No sidecar at {sidecar}\n"
+            f"  No DISPLAY for interactive RectangleSelector.\n\n"
+            f"To proceed in a headless environment, create the sidecar:\n"
+            f"  {sidecar}\n"
+            f"with contents:\n"
+            f'  {{"roi": [row1, row2, col1, col2], '
+            f'"note": "[row1, row2, col1, col2], inclusive"}}\n'
+            f"where row/col bounds index into the {h}x{w} qcamraw frame.\n"
+        )
 
     # Try dF/F map; fall back to first frame if recording is too short or
     # baseline/stim config doesn't match.

@@ -49,27 +49,42 @@ subjects = pd.read_csv(args.subjects).set_index('subject_id')
 experiments = pd.read_csv(args.experiments).set_index('subject_id')
 experiments['keywords'] = experiments['keywords'].apply(ast.literal_eval)
 
+succeeded, failed = [], []
 for experimentID, d in experiments.iterrows():
-    print(f'processing: {experimentID}...')
+    print(f'\nprocessing: {experimentID}...')
     outputNWBpath = os.path.join(args.dataPath, experimentID,
                                  f'{experimentID}_qcam_DANDI.nwb')
-    subject = lib.nwbScanImage.setSubject(
-        subject_id=experimentID,
-        age=f"P{subjects.loc[experimentID]['age']}D",
-        species='Mus musculus',
-        sex=subjects.loc[experimentID]['sex'],
-        genotype=subjects.loc[experimentID]['genotype'],
-        description=subjects.loc[experimentID]['description'],
-    )
-    lib.nwbQcam.genNWBfromQcamraw_pc(
-        experimentID=experimentID,
-        dataPath=args.dataPath,
-        NWBoutputPath=outputNWBpath,
-        subject=subject,
-        session_description=d['session_description'],
-        experiment_description=d['experiment_description'],
-        keywords=d['keywords'],
-        **cfg['nwb_file'],
-        **cfg['imaging'],
-        **cfg['qcam'],
-    )
+    try:
+        subject = lib.nwbScanImage.setSubject(
+            subject_id=experimentID,
+            age=f"P{subjects.loc[experimentID]['age']}D",
+            species='Mus musculus',
+            sex=subjects.loc[experimentID]['sex'],
+            genotype=subjects.loc[experimentID]['genotype'],
+            description=subjects.loc[experimentID]['description'],
+        )
+        lib.nwbQcam.genNWBfromQcamraw_pc(
+            experimentID=experimentID,
+            dataPath=args.dataPath,
+            NWBoutputPath=outputNWBpath,
+            subject=subject,
+            session_description=d['session_description'],
+            experiment_description=d['experiment_description'],
+            keywords=d['keywords'],
+            **cfg['nwb_file'],
+            **cfg['imaging'],
+            **cfg['qcam'],
+        )
+        succeeded.append(experimentID)
+    except Exception as e:
+        import traceback
+        print(f'  ERROR converting {experimentID}: {type(e).__name__}: {e}')
+        traceback.print_exc()
+        failed.append((experimentID, f'{type(e).__name__}: {e}'))
+
+print(f'\n=== summary ===')
+print(f"succeeded ({len(succeeded)}): {', '.join(succeeded) or '(none)'}")
+if failed:
+    print(f'failed ({len(failed)}):')
+    for s, msg in failed:
+        print(f'  - {s}: {msg.splitlines()[0]}')
