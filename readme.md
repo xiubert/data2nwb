@@ -55,7 +55,7 @@ Both pipelines read subject and experiment metadata from CSVs stored in `data/` 
 | --- | --- | --- |
 | `subject_id` | yes | Must match `animalList.csv` and data folder name |
 | `session_description` | yes | Short session label(s); the value is passed to NWB as a single string. If your experiment has multiple sessions, separate them with `;` or `\|` for readability — keep them in the one cell. |
-| `experiment_description` | yes | Full description(s); same convention as `session_description`. |
+| `experiment_description` | yes | Manuscript Figure; Full description(s); same convention as `session_description`. |
 | `keywords` | yes | Python list literal, e.g. `"['2P', 'DRC', 'pupillometry']"` |
 
 > **Species:** both pipelines hardcode `species="Mus musculus"` when constructing the NWB `Subject`. Edit the `setSubject(...)` call in `scanimage2nwb.py` / `qcam2nwb.py` if you need a different species.
