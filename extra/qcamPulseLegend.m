@@ -14,6 +14,8 @@ function pulseLegendQcam = qcamPulseLegend(qcamDir, saveFile)
 %     ISI        - inter-stimulus interval (s) from params
 %     xsg        - associated .xsg file(s): string for single pulse,
 %                  cell array of strings for map (multi-pulse) files
+%     treatment  - treatment label (initialized to ''; fill in manually
+%                  before reading the legend in Python)
 %
 %   saveFile (optional): true/false whether to save pulseLegendQcam as
 %                        pulseLegendQcam.mat in qcamDir (default: false).

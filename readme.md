@@ -54,9 +54,11 @@ Both pipelines read subject and experiment metadata from CSVs stored in `data/` 
 | Column | Required | Description |
 | --- | --- | --- |
 | `subject_id` | yes | Must match `animalList.csv` and data folder name |
-| `session_description` | yes | Short session label(s); use `\|` to separate multiple |
-| `experiment_description` | yes | Full description(s); use `\|` to separate multiple |
+| `session_description` | yes | Short session label(s); the value is passed to NWB as a single string. If your experiment has multiple sessions, separate them with `;` or `\|` for readability — keep them in the one cell. |
+| `experiment_description` | yes | Full description(s); same convention as `session_description`. |
 | `keywords` | yes | Python list literal, e.g. `"['2P', 'DRC', 'pupillometry']"` |
+
+> **Species:** both pipelines hardcode `species="Mus musculus"` when constructing the NWB `Subject`. Edit the `setSubject(...)` call in `scanimage2nwb.py` / `qcam2nwb.py` if you need a different species.
 
 ---
 
@@ -89,7 +91,7 @@ Can also be run from `scanimage2nwb.ipynb`. Output: `{dataPath}/{experimentID}/{
 dataPath/
   AA0001/                        ← experimentID / subject_id
     AA0001*.tif
-    NoRMCorred/
+    NoRMCorred/                  ← directory name set by dataProcessing.motionCorrectedTifDir
       AA0001*_NoRMCorre.tif
       AA0001_NoRMCorreParams.mat
     AA0001_moCorrROI_all.mat     (or AA0001*_roiOutput.mat)
@@ -100,6 +102,12 @@ dataPath/
   AA0002/
   ...
 ```
+
+The motion-corrected tif subdirectory name defaults to `NoRMCorred` and is configurable via `dataProcessing.motionCorrectedTifDir` in the YAML config.
+
+### Session start time
+
+Session start is the earliest tif acquisition time across the experiment, parsed from each tif's ScanImage `epoch` metadata field via `lib.tifExtract.getSItifTime`. The `min(...)` over all tifs avoids an off-by-one when files are not in chronological alphabetical order.
 
 ### File sources and fallbacks
 
@@ -242,9 +250,10 @@ One ROI per treatment. The first `.qcamraw` of each treatment is used to resolve
 
 | Priority | Source | Notes |
 | --- | --- | --- |
-| 1 | `pulseLegendQcam.mat` | Run `extra/qcamPulseLegend.m` — requires `*_Pulses.mat` files alongside each `.qcamraw`. Aggregated struct saved as `-v7.3`. |
-| 2 | `pulseLegendQcam.csv` | Run `extra/matchXSG.py --pattern "*.qcamraw"`, or create manually. `stimDelay` / `ISI` are blank when generated — fill manually. |
-| 3 | *(none found)* | Inventory-only stim table (one row per `.qcamraw`, NaN for `stimDelay` / `ISI`, empty strings for `pulseName` / `pulseSet` / `xsg`). Structurally valid; passes nwbinspector. |
+| 1 | `*_Pulses.mat` (one per `.qcamraw`) | Read directly via `lib.mat2py.getPulsesPerFile`. Same format as the 2P `_Pulses.mat` files; treatments are backfilled from the qcam file list. |
+| 2 | `pulseLegendQcam.mat` | Run `extra/qcamPulseLegend.m` — aggregates `*_Pulses.mat` into a single struct saved as `-v7.3`. |
+| 3 | `pulseLegendQcam.csv` | Run `extra/matchXSG.py --pattern "*.qcamraw"`, or create manually. `stimDelay` / `ISI` are blank when generated — fill manually. |
+| 4 | *(none found)* | Inventory-only stim table (one row per `.qcamraw`, NaN for `stimDelay` / `ISI`, empty strings for `pulseName` / `pulseSet` / `xsg`). Structurally valid; passes nwbinspector. |
 
 See [Pulse legend format](#pulse-legend-format) for column definitions.
 
@@ -287,14 +296,14 @@ Shared column format for both pipelines. One row per pulse/xsg. Map files appear
 
 | Column | Type | Description |
 | --- | --- | --- |
-| `tif` | string | `.tif` or `.qcamraw` basename (imaging file key) |
+| `file` | string | `.tif` or `.qcamraw` basename (imaging file key). Legacy `tif` column name is also accepted on read. |
 | `type` | `stim` \| `map` | Single stimulus or BF mapping file |
 | `pulseName` | string | Pulse name |
 | `pulseSet` | string | Pulse set name |
 | `stimDelay` | float | Delay to stimulus onset in seconds |
 | `ISI` | float | Inter-stimulus interval in seconds |
 | `xsg` | string | Associated `.xsg` file basename |
-| `treatment` | string | Treatment label (e.g. `preZX1`, `postZX1`, `CTRL`); blank if not applicable |
+| `treatment` | string | Treatment label (e.g. `preZX1`, `postZX1`, `CTRL`); blank if not applicable. Legacy `condition` column is also accepted on read. |
 
 ---
 

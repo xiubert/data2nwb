@@ -21,4 +21,7 @@ imaging:
   imagingPlane_gridSpacing: [0.0, 0.0]          # [x, y] pixel size in gridSpacingUnit
   imagingPlane_gridSpacingUnit: "micrometers"
   imagingPlane_originCoords: [0.0, 0.0, 0.0]   # [AP, ML, DV] relative to bregma
-  imagingPlane_originCoordsUnit: "meters"
+  imagingPlane_originCoordsUnit: "millimeters"
+
+dataProcessing:
+  motionCorrectedTifDir: "NoRMCorred"   # subdirectory within experimentDir holding *_NoRMCorre.tif files

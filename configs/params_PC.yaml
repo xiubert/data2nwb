@@ -19,4 +19,7 @@ imaging:
   imagingPlane_gridSpacing: [145.0, 145.0]
   imagingPlane_gridSpacingUnit: "micrometers"
   imagingPlane_originCoords: [-2.0, 4.25, 2.0]
-  imagingPlane_originCoordsUnit: "meters"
+  imagingPlane_originCoordsUnit: "millimeters"
+
+dataProcessing:
+  motionCorrectedTifDir: "NoRMCorred"   # subdirectory within experimentDir holding *_NoRMCorre.tif files

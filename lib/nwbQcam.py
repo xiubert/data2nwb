@@ -276,7 +276,7 @@ def genNWBfromQcamraw_pc(
     # ----------------------------------- stim/pulse metadata table ----
     _add_stim_table(nwbfile, experimentDir,
                     qcam_files, file_types, treatments,
-                    starts_rel, nframes, qcam_frameRate)
+                    starts_abs, starts_rel, nframes, qcam_frameRate)
 
     writeNWB(NWBoutputPath, nwbfile, overWrite=overWriteNWB)
     print(f'NWB write success to: {NWBoutputPath}')
@@ -286,16 +286,36 @@ def genNWBfromQcamraw_pc(
 
 def _add_stim_table(nwbfile, experimentDir,
                     qcam_files, file_types, treatments,
-                    starts_rel, nframes, frame_rate):
-    """Add stimulus metadata from pulseLegendQcam.mat / pulseLegendQcam.csv.
+                    starts_abs, starts_rel, nframes, frame_rate):
+    """Add stimulus metadata.
+
+    Fallback ladder:
+      1. *_Pulses.mat next to each .qcamraw (read directly, mirrors 2P)
+      2. pulseLegendQcam.mat
+      3. pulseLegendQcam.csv
+      4. (none) — inventory-only stim table
 
     Strict-match behaviour: every pulseFile must correspond to a known
     acquisition file, otherwise raises.
     """
+    # priority 1: per-file *_Pulses.mat alongside each .qcamraw
+    expected_pulses = [
+        os.path.join(experimentDir, os.path.splitext(f)[0] + '_Pulses.mat')
+        for f in qcam_files
+    ]
+    have_per_file_pulses = (len(qcam_files) > 0 and
+                            all(os.path.exists(p) for p in expected_pulses))
     legendMat = os.path.join(experimentDir, 'pulseLegendQcam.mat')
     legendCSV = os.path.join(experimentDir, 'pulseLegendQcam.csv')
 
-    if os.path.exists(legendMat):
+    if have_per_file_pulses:
+        print('reading pulse metadata from *_Pulses.mat files')
+        (pulseFiles, pulseTypes, stimDelays, ISIs,
+         pulseNames, pulseSets, xsg, treatments_pl) = lib.mat2py.getPulsesPerFile(
+            experimentDir, list(qcam_files), list(file_types))
+        # _Pulses.mat carries no treatment field — backfill from file list
+        treatments_pl = [treatments[qcam_files.index(f)] for f in pulseFiles]
+    elif os.path.exists(legendMat):
         print('reading pulse metadata from pulseLegendQcam.mat')
         (pulseFiles, pulseTypes, stimDelays, ISIs,
          pulseNames, pulseSets, xsg, treatments_pl) = lib.mat2py.getPulsesFromLegend(legendMat)
@@ -318,7 +338,7 @@ def _add_stim_table(nwbfile, experimentDir,
         treatments_pl = list(treatments)  # use file list treatments as fallback
 
     # cross-reference every pulse row to an acquisition (strict match)
-    acq_idx, acq_starts, acq_nframes = [], [], []
+    acq_idx, acq_starts, acq_nframes, acq_times_abs = [], [], [], []
     for f in pulseFiles:
         try:
             i = qcam_files.index(f)
@@ -330,10 +350,13 @@ def _add_stim_table(nwbfile, experimentDir,
         acq_idx.append(f'OnePhotonSeries_{i:03}')
         acq_starts.append(float(starts_rel[i]))
         acq_nframes.append(int(nframes[i]))
+        acq_times_abs.append(starts_abs[i].strftime('%Y-%m-%d %H:%M:%S.%f'))
 
     stimData = {
         'file':            ('name of .qcamraw file', list(pulseFiles)),
         'OnePhotonSeries': ('OnePhotonSeries name', acq_idx),
+        'fileTimeInstantiate': ('time .qcamraw file was instantiated/created',
+                                acq_times_abs),
         'starting_time':   ('start time of file (s) from session start',
                             acq_starts),
         'type':            ('whether stim or mapping type', list(pulseTypes)),

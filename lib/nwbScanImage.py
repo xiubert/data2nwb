@@ -155,8 +155,11 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
         roiSet = [re.search(f"{experimentID}_moCorrROI_(.*).mat", roiMat).group(1) for roiMat in roiMats]
         tifROIset = treatment
 
-    # get metadata from first tif for session start
-    session_start = lib.tifExtract.getSItifTime(os.path.join(experimentDir, tifFileList[0]))
+    # session start = earliest tif timestamp (not just the first by name)
+    session_start = min(
+        lib.tifExtract.getSItifTime(os.path.join(experimentDir, t))
+        for t in tifFileList
+    )
 
     #%% NWB file generation
     nwbfile = NWBFile(
@@ -350,8 +353,8 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     legendCSV = os.path.join(experimentDir, 'pulseLegend2P.csv')
     if pulsesMatFiles:
         (pulseTifs, pulseTifTypes, stimDelays, ISIs,
-         pulseNames, pulseSets, xsg, treatments) = lib.mat2py.getTifPulses(
-            dataPath, experimentID, tifFileList, tifTypeList)
+         pulseNames, pulseSets, xsg, treatments) = lib.mat2py.getPulsesPerFile(
+            experimentDir, tifFileList, tifTypeList)
     elif os.path.exists(legendMat):
         print("No _Pulses.mat files found — reading pulse metadata from pulseLegend2P.mat...")
         (pulseTifs, pulseTifTypes, stimDelays, ISIs,
@@ -408,8 +411,10 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     print('added stim table data')
 
     #%% add pupillometry
-    if (os.path.exists(os.path.join(experimentDir, pupilMat)) or
-        os.path.exists(os.path.join(experimentDir, pupilMat.replace('_s.mat', '.mat')))):
+    # Only the converted struct form (_s.mat) is loadable here. If users have
+    # the raw table form (no _s suffix) they must convert it first via
+    # extra/tableMAT2StructMAT.m — see readme.
+    if os.path.exists(os.path.join(experimentDir, pupilMat)):
         print(f"found pupillometry data for {experimentID}")
 
         behavior_module = nwbfile.create_processing_module(

@@ -261,29 +261,33 @@ def getPupilImg(pupilMatPath: str) -> np.ndarray:
     return np.transpose(pupilImgData, (2, 0, 1))
 
 
-def getPulses(tif: str, tifType: str) -> dict:
+def getPulses(file_path: str, fileType: str) -> dict:
     """
-    Grabs stimulation metadata associated with provided .tif.
+    Grabs stimulation metadata associated with the provided imaging file.
+
+    Reads `<basename>_Pulses.mat` next to the imaging file. Works for any
+    imaging file extension (.tif, .qcamraw) since the lookup uses splitext.
 
     Args:
-        tif (str): file path to .tif
-        tifType (str): whether .tif is associated with single stim or with multiple stims/pulses (in case of BF mapping)
+        file_path (str): file path to imaging file (.tif or .qcamraw)
+        fileType (str): 'stim' (single pulse) or 'map' (multiple pulses, BF mapping)
     Returns:
         pulseParams (dict): parameters of delivered pulse stimuli
         pulse (dict): metadata associated with pulse/stimuli eg pulse name etc
     """
-    mat = loadmat(tif.replace('.tif','_Pulses.mat'))
+    base, _ = os.path.splitext(file_path)
+    mat = loadmat(base + '_Pulses.mat')
 
     pulseParams,pulse = {},{}
     pulseParams['traceAcqTime'] = lib.tifExtract.parse_datetime_list(mat['params'][0]['acquisitionStartTime'][0][0])
     pulseParams['stimDelay'] = mat['params'][0]['stimDelay'][0][0][0]
     pulseParams['ISI'] = mat['params'][0]['ISI'][0][0][0]
 
-    if tifType=='stim':
+    if fileType=='stim':
         pulse['pulseSet'] = mat['pulse'][0]['pulseset'][0][0]
         pulse['pulseName'] = mat['pulse'][0]['pulsename'][0][0]
         pulse['xsg'] = mat['pulse'][0]['curXSG'][0][0].split('\\')[-1]
-    elif tifType=='map':
+    elif fileType=='map':
         pulse['pulseSet'] = np.concatenate(np.squeeze(mat['pulse'][0]['pulseset']))
         pulse['pulseName'] = np.concatenate(np.squeeze(mat['pulse'][0]['pulsename']))
         pulse['xsg'] = list(map(lambda x: x.split('\\')[-1],np.concatenate(np.squeeze(mat['pulse'][0]['curXSG']))))
@@ -631,35 +635,39 @@ def getTifList(dataPath: str, experimentID: str, tifListMatFilename: str | None)
     return tifList, tifTypeList, treatments, nFrames
 
 
-def getTifPulses(dataPath: str, experimentID: str, tifList: list[str], tifTypeList: list[str]):
+def getPulsesPerFile(experimentDir: str, fileList: list[str], fileTypeList: list[str]):
     """
-    Gets associated .tif pulse data.
+    Reads stimulus metadata from `*_Pulses.mat` companions of imaging files.
+
+    Generalised over imaging file format — works for both ScanImage `.tif`
+    and QImaging `.qcamraw` files (or any imaging file with a sibling
+    `<basename>_Pulses.mat`).
 
     Args:
-        dataPath (str): parent folder path to tifFileList.mat
-        experimentID: experiment id (usually parent folder name eg AA0304)
-        tifList (list[str]): each element is .tif filename
-        tifTypeList (list[str]): each element indicates .tif type (single pulse or multiple pulses/BFmap)
+        experimentDir (str): directory containing the imaging files and
+            their `*_Pulses.mat` companions.
+        fileList (list[str]): each element a basename of an imaging file
+        fileTypeList (list[str]): each element 'stim' (single pulse) or
+            'map' (multiple pulses / BF mapping)
 
     Returns:
-        tifs (list[str]): each element is .tif filename
-        tifTypes (list[str]): each element indicates .tif type (single pulse or multiple pulses/BFmap)
-        stimDelays (list[int]): each element indicates delay to stimulus for associated .tif
-        ISIs (list[int]): each element indicates ISI between pulses for assocaited .tif
-        pulseNames (list[str]): each element is list of pulses for associated .tif
-        pulseSets (list[str]): each element indicates pulse set name for associated .tif
-        xsg (list[str]): each element indicates associated .xsg file(s) for assocaited .tif
+        Tuple of 8 lists (one row per pulse/xsg; map files expand to one
+        row per associated xsg):
+            files, fileTypes, stimDelays, ISIs, pulseNames, pulseSets,
+            xsg, treatments
+        `treatments` is filled with empty strings; populate it from a
+        higher-level file list if needed.
     """
-    tifs, tifTypes = [],[]
+    files, fileTypes = [],[]
     stimDelays, ISIs, pulseNames, pulseSets, xsg, treatments = [],[],[],[],[],[]
 
-    for tif,tifType in zip(tifList,tifTypeList):
-        pulseParams,pulse = getPulses(os.path.join(dataPath,experimentID,tif),tifType)
+    for fname,fileType in zip(fileList,fileTypeList):
+        pulseParams,pulse = getPulses(os.path.join(experimentDir,fname),fileType)
         pulseSet,pulseName,x = list(pulse.values())
 
-        if tifType=='map':
-            tif,tifType,ISI,stimDelay = zip(*[(tif,
-                                   tifType,
+        if fileType=='map':
+            fname,fileType,ISI,stimDelay = zip(*[(fname,
+                                   fileType,
                                    pulseParams['stimDelay'],
                                    pulseParams['ISI']) for _ in pulseName])
             xsg.extend(x)
@@ -667,13 +675,13 @@ def getTifPulses(dataPath: str, experimentID: str, tifList: list[str], tifTypeLi
             pulseSets.extend(pulseSet)
             ISIs.extend(ISI)
             stimDelays.extend(stimDelay)
-            tifs.extend(tif)
-            tifTypes.extend(tifType)
+            files.extend(fname)
+            fileTypes.extend(fileType)
             treatments.extend(['' for _ in pulseName])
 
         else:
-            tifs.append(tif)
-            tifTypes.append(tifType)
+            files.append(fname)
+            fileTypes.append(fileType)
             xsg.append(x)
             pulseNames.append(pulseName)
             pulseSets.append((np.unique(pulseSet)[0] if len(np.unique(pulseSet))==1 else pulseSet))
@@ -681,7 +689,14 @@ def getTifPulses(dataPath: str, experimentID: str, tifList: list[str], tifTypeLi
             stimDelays.append(pulseParams['stimDelay'])
             treatments.append('')
 
-    return tifs, tifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg, treatments
+    return files, fileTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg, treatments
+
+
+def getTifPulses(dataPath: str, experimentID: str, tifList: list[str], tifTypeList: list[str]):
+    """
+    Backward-compatible wrapper around getPulsesPerFile for 2P call sites.
+    """
+    return getPulsesPerFile(os.path.join(dataPath, experimentID), tifList, tifTypeList)
 
 
 def getPulsesFromLegend(legendMatPath: str) -> tuple:
@@ -777,13 +792,20 @@ def getPulsesFromCSV(csvPath: str) -> tuple:
         tifs, tifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg
         matching the format returned by getTifPulses
     """
-    tifs, tifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg, treatments = [], [], [], [], [], [], [], []
+    files, fileTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg, treatments = [], [], [], [], [], [], [], []
 
     with open(csvPath, newline='') as f:
         reader = csv.DictReader(f)
         for row in reader:
-            tifs.append(row['tif'])
-            tifTypes.append(row['type'])
+            # imaging file key column: prefer 'file', fall back to legacy 'tif'
+            if 'file' in row:
+                files.append(row['file'])
+            elif 'tif' in row:
+                files.append(row['tif'])
+            else:
+                raise KeyError(
+                    f"{csvPath}: pulse legend must have a 'file' (or legacy 'tif') column.")
+            fileTypes.append(row['type'])
             stimDelays.append(float(row['stimDelay']))
             ISIs.append(float(row['ISI']))
             pulseNames.append(row['pulseName'])
@@ -792,6 +814,6 @@ def getPulsesFromCSV(csvPath: str) -> tuple:
             # read 'treatment'; fall back to 'condition' for old CSVs
             treatments.append(row.get('treatment', row.get('condition', '')))
 
-    return tifs, tifTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg, treatments
+    return files, fileTypes, stimDelays, ISIs, pulseNames, pulseSets, xsg, treatments
 
 

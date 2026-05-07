@@ -19,13 +19,22 @@ parser = argparse.ArgumentParser(
     description='Convert QImaging .qcamraw epifluorescence data to NWB.')
 parser.add_argument(
     'dataPath',
-    help='Top-level directory containing per-subject data folders.')
-parser.add_argument('--subjects', default='./data/animalList.csv',
-                    metavar='PATH')
-parser.add_argument('--experiments', default='./data/experimentMetadata.csv',
-                    metavar='PATH')
-parser.add_argument('--config', default='./configs/params_qcam.yaml',
-                    metavar='PATH')
+    help='Top-level directory containing per-subject data folders (each folder named by subject_id).')
+parser.add_argument(
+    '--subjects',
+    default='./data/animalList.csv',
+    metavar='PATH',
+    help='Path to animalList.csv (default: ./data/animalList.csv).')
+parser.add_argument(
+    '--experiments',
+    default='./data/experimentMetadata.csv',
+    metavar='PATH',
+    help='Path to experimentMetadata.csv (default: ./data/experimentMetadata.csv).')
+parser.add_argument(
+    '--config',
+    default='./configs/params_qcam.yaml',
+    metavar='PATH',
+    help='Path to YAML config file (default: ./configs/params_qcam.yaml).')
 args = parser.parse_args()
 
 print(f'dataPath:    {args.dataPath}')

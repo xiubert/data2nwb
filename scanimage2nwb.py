@@ -71,5 +71,6 @@ for experimentID,d in experiments.iterrows():
         experiment_description=d['experiment_description'],
         keywords=d['keywords'],
         **cfg['nwb_file'],
-        **cfg['imaging']
+        **cfg['imaging'],
+        **cfg.get('dataProcessing', {}),
         )

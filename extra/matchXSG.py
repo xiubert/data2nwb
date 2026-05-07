@@ -119,7 +119,7 @@ def matchFilesToXSGs(exp_dir: str, pattern: str = '*.tif',
     created at or after its start time (always type = 'stim').
 
     Returns list of row dicts with keys matching pulseLegend{2P,Qcam}.csv columns:
-        tif, type, pulseName, pulseSet, stimDelay, ISI, xsg
+        file, type, pulseName, pulseSet, stimDelay, ISI, xsg, treatment
     stimDelay and ISI are set to '' (blank) as they are not in the xsg header.
     """
     exp_dir = Path(exp_dir)
@@ -184,7 +184,7 @@ def matchFilesToXSGs(exp_dir: str, pattern: str = '*.tif',
                 pulse = {'pulseName': '', 'pulseSet': ''}
 
             rows.append({
-                'tif':       file_path.name,
+                'file':      file_path.name,
                 'type':      file_type,
                 'pulseName': pulse['pulseName'],
                 'pulseSet':  pulse['pulseSet'],
@@ -229,7 +229,7 @@ def main():
         sys.exit(1)
 
     out_path = args.output or _default_output(args.exp_dir, args.pattern)
-    fieldnames = ['tif', 'type', 'pulseName', 'pulseSet', 'stimDelay', 'ISI', 'xsg', 'treatment']
+    fieldnames = ['file', 'type', 'pulseName', 'pulseSet', 'stimDelay', 'ISI', 'xsg', 'treatment']
 
     with open(out_path, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)

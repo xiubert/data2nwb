@@ -6,13 +6,15 @@ function pulseLegend2P = tifPulseLegend2P(tif2Pdir, saveFile)
 %
 %   Scans tif2Pdir for *_Pulses.mat files and extracts pulse metadata.
 %   Fields added per entry:
-%     tif        - corresponding .tif filename
+%     file       - corresponding .tif filename (imaging file key)
 %     pulseName  - pulse name (trimmed of trailing _N index for single pulses)
 %     pulseSet   - pulse set name
 %     stimDelay  - stimulus delay (s) from params
 %     ISI        - inter-stimulus interval (s) from params
 %     xsg        - associated .xsg file(s): string for single pulse,
 %                  cell array of strings for map (multi-pulse) files
+%     treatment  - treatment label (initialized to ''; fill in manually
+%                  before reading the legend in Python)
 %
 %   saveFile (optional): true/false whether to save pulseLegend2P as
 %                        pulseLegend2P.mat in tif2Pdir (default: false).
@@ -30,7 +32,7 @@ dList = dir(tif2Pdir);
 pulses = dList(contains({dList.name}, '_Pulses.mat'));
 
 for f = 1:length(pulses)
-    pulses(f).tif = strrep(pulses(f).name, '_Pulses.mat', '.tif');
+    pulses(f).file = strrep(pulses(f).name, '_Pulses.mat', '.tif');
 
     load(fullfile(pulses(f).folder, pulses(f).name), 'pulse', 'params')
 
