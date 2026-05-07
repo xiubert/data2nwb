@@ -138,12 +138,25 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
         roiOutputMats = sorted(glob.glob(os.path.join(experimentDir, '*_roiOutput.mat')))
         if not roiOutputMats:
             raise FileNotFoundError(f"No ROI .mat files found in {experimentDir}")
-        roiMats = [lib.mat2py._select_one(
-            title='ROI file selection',
-            prompt='Select roiOutput.mat file:',
-            items=[os.path.basename(p) for p in roiOutputMats],
-            base_dir=experimentDir
-        )]
+        if len(roiOutputMats) == 1:
+            roiMats = [roiOutputMats[0]]
+        elif lib.mat2py._interactive_environment_available():
+            roiMats = [lib.mat2py._select_one(
+                title='ROI file selection',
+                prompt='Select roiOutput.mat file:',
+                items=[os.path.basename(p) for p in roiOutputMats],
+                base_dir=experimentDir
+            )]
+        else:
+            candidates = "\n".join(f"  - {os.path.basename(p)}" for p in roiOutputMats)
+            raise FileNotFoundError(
+                f"\nMultiple *_roiOutput.mat candidates for {experimentID} and "
+                f"no TTY/DISPLAY for interactive selection.\n"
+                f"Candidates:\n{candidates}\n\n"
+                f"To proceed in a headless environment, leave only the desired "
+                f"_roiOutput.mat file in {experimentDir} (move or rename the others), "
+                f"or place a {experimentID}_moCorrROI_all.mat file there.\n"
+            )
 
     if len(roiMats) == 1 and os.path.basename(roiMats[0]) == f"{experimentID}_moCorrROI_all.mat":
         roiSet = ["all"]
