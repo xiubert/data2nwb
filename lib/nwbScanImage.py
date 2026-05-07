@@ -378,7 +378,22 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
          pulseNames, pulseSets, xsg, treatments) = lib.mat2py.getPulsesFromCSV(legendCSV)
     else:
         raise FileNotFoundError(
-            f"No _Pulses.mat, pulseLegend2P.mat, or pulseLegend2P.csv found in {experimentDir}"
+            f"\nNo pulse / stimulus metadata found for {experimentID}.\n"
+            f"  No *_Pulses.mat files in {experimentDir}\n"
+            f"  Missing: {legendMat}\n"
+            f"  Missing: {legendCSV}\n\n"
+            f"To proceed, provide one of the above. In priority order:\n"
+            f"  1. Per-tif *_Pulses.mat files (one alongside each {experimentID}*.tif),\n"
+            f"     written automatically by 2PCI_setup\n"
+            f"     (https://github.com/xiubert/2PCI_setup).\n"
+            f"  2. pulseLegend2P.mat — generate via extra/tifPulseLegend2P.m\n"
+            f"     (requires the *_Pulses.mat files in step 1).\n"
+            f"  3. pulseLegend2P.csv — generate via extra/matchXSG.py from .xsg\n"
+            f"     timestamps, or write by hand. Columns: file, type, pulseName,\n"
+            f"     pulseSet, stimDelay, ISI, xsg, treatment. See\n"
+            f"     example_data/pulseLegend2P_example.csv for a template.\n\n"
+            f"Note: completing the interactive tif-list scan does NOT generate\n"
+            f"pulse metadata — that is a separate fallback ladder.\n"
         )
 
     # extend remaining params
