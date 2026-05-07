@@ -7,6 +7,7 @@ import h5py
 import numpy as np
 from scipy.io import loadmat
 import os
+import sys
 from pathlib import Path
 import lib.tifExtract
 
@@ -595,10 +596,106 @@ def getTifTypes(tifFileListMatPath: str) -> list[str]:
         return list(h5['tifFileList'].keys())
     
 
+def _interactive_environment_available() -> bool:
+    """True if either a TTY or a usable windowing environment is present
+    for running an interactive prompt; False in headless / batch contexts.
+    """
+    if sys.stdin.isatty():
+        return True
+    if _TK_AVAILABLE:
+        # tk requires DISPLAY on Linux; usually works without on macOS/Windows
+        if sys.platform in ('darwin', 'win32') or os.environ.get('DISPLAY'):
+            return True
+    return False
+
+
+def getTifListFromCSV(csvPath: str, experimentDir: str) -> tuple:
+    """
+    Read a 2P file list CSV (mirrors qcam's _qcamFileList.csv format).
+
+    Expected columns: file, treatment, type
+      - file: tif basename
+      - treatment: experimental condition label (e.g. preZX1, postZX1)
+      - type: 'stim' (single stimulus) or 'map' (BF mapping, multi-pulse)
+
+    Frame counts are read from each tif's metadata so the CSV does not need
+    to duplicate that field.
+
+    Files are returned grouped by type (all 'stim' first, then all 'map'),
+    matching the order the MAT path produces — this keeps motion-correction
+    shift slicing (lib.mat2py.getMoCorrShiftParams) consistent across both
+    sources.
+    """
+    by_type = {'stim': [], 'map': []}
+    with open(csvPath, newline='') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            t = row['type'].strip()
+            if t not in by_type:
+                raise ValueError(
+                    f"{csvPath}: unknown type {t!r}; expected 'stim' or 'map'"
+                )
+            by_type[t].append((row['file'].strip(), row['treatment'].strip()))
+
+    tifList, tifTypeList, treatments, nFrames = [], [], [], []
+    for tifType in ('stim', 'map'):
+        for tif, treat in by_type[tifType]:
+            _, _, nf, _ = lib.tifExtract.getSItifData(
+                os.path.join(experimentDir, tif), getMetadata=True)
+            tifList.append(tif)
+            tifTypeList.append(tifType)
+            treatments.append(treat)
+            nFrames.append(int(nf))
+    return tifList, tifTypeList, treatments, nFrames
+
+
+def _raise_no_tif_list(experimentID: str, experimentDir: str,
+                       matPath: str, csvPath: str) -> None:
+    """Raise FileNotFoundError with actionable instructions on creating a
+    `_tifFileList.csv` when no other source is available and no interactive
+    environment is detected.
+    """
+    sample_tifs = sorted(
+        p.name for p in Path(experimentDir).glob(f"{experimentID}*.tif")
+    )[:3]
+    if sample_tifs:
+        sample_lines = "\n".join(
+            f"  {t},preZX1,{'stim' if i < len(sample_tifs) - 1 else 'map'}"
+            for i, t in enumerate(sample_tifs)
+        )
+    else:
+        sample_lines = f"  {experimentID}_001.tif,preZX1,stim"
+
+    raise FileNotFoundError(
+        f"\nCannot determine tif file list for {experimentID}.\n"
+        f"  Missing: {matPath}\n"
+        f"  Missing: {csvPath}\n"
+        f"  No TTY/DISPLAY available for interactive selection.\n\n"
+        f"To proceed, create the CSV at:\n"
+        f"  {csvPath}\n"
+        f"with columns: file, treatment, type\n\n"
+        f"Example contents:\n"
+        f"  file,treatment,type\n"
+        f"{sample_lines}\n\n"
+        f"Column meanings:\n"
+        f"  - file:       tif basename\n"
+        f"  - treatment:  experimental condition label (e.g. preZX1, postZX1)\n"
+        f"  - type:       'stim' (single stimulus) or 'map' (BF mapping)\n\n"
+        f"See example_data/tifFileList_example.csv for a template.\n"
+    )
+
+
 def getTifList(dataPath: str, experimentID: str, tifListMatFilename: str | None):
     """
-    Gets tif list, frame counts, and associated treatment from tifFileList.mat file.
-    Returns lists of length n tifs.
+    Gets tif list, frame counts, and associated treatment from tifFileList.
+
+    Fallback ladder:
+      1. {experimentID}_tifFileList.mat (full metadata, MATLAB pipeline output)
+      2. {experimentID}_tifFileList.csv (columns: file, treatment, type)
+      3. interactive directory scan (only if a TTY or DISPLAY is available)
+
+    If none of the above are available, raises FileNotFoundError with
+    instructions on creating the CSV.
 
     Args:
         dataPath (str): parent folder path to tifFileList.mat
@@ -610,7 +707,10 @@ def getTifList(dataPath: str, experimentID: str, tifListMatFilename: str | None)
         treatments (list[str]): element indicates treatment associated w/ .tif
         nFrames (list[int]): element indicates frame count for associated .tif
     """
-    tifListMatPath = os.path.join(dataPath, experimentID, tifListMatFilename)
+    experimentDir = os.path.join(dataPath, experimentID)
+    tifListMatPath = os.path.join(experimentDir, tifListMatFilename)
+    tifListCSVPath = os.path.join(experimentDir, f"{experimentID}_tifFileList.csv")
+
     if os.path.exists(tifListMatPath):
         print("Found tifFileList generated from MATLAB analysis.")
         tifTypes = getTifTypes(tifListMatPath)
@@ -628,11 +728,17 @@ def getTifList(dataPath: str, experimentID: str, tifListMatFilename: str | None)
             tifTypeList.extend([tifType]*len(tifs))
             nFrames.extend(nFrame)
             treatments.extend(treatment)
-    else:
-        print("tifFileList not found. Falling back to interactive directory scan...")
-        tifList, tifTypeList, treatments, nFrames = getTifListFromDir(dataPath, experimentID)
+        return tifList, tifTypeList, treatments, nFrames
 
-    return tifList, tifTypeList, treatments, nFrames
+    if os.path.exists(tifListCSVPath):
+        print(f"Reading tif file list from {os.path.basename(tifListCSVPath)}")
+        return getTifListFromCSV(tifListCSVPath, experimentDir)
+
+    if _interactive_environment_available():
+        print("tifFileList not found. Falling back to interactive directory scan...")
+        return getTifListFromDir(dataPath, experimentID)
+
+    _raise_no_tif_list(experimentID, experimentDir, tifListMatPath, tifListCSVPath)
 
 
 def getPulsesPerFile(experimentDir: str, fileList: list[str], fileTypeList: list[str]):
