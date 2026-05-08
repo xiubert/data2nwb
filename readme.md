@@ -11,6 +11,8 @@ Two pipelines are provided, sharing subject/experiment metadata:
 
 ## Setup
 
+> **Python version:** best compatibility with **Python 3.12**. On Windows, install it from the Microsoft Store (search "Python 3.12") — this exposes the `python3.12` launcher used below.
+
 1. Clone the repository and change into it:
 
    ```bash
@@ -18,15 +20,16 @@ Two pipelines are provided, sharing subject/experiment metadata:
    cd data2nwb
    ```
 
-2. Create and activate a virtual environment:
+2. Create and activate a virtual environment (use `python3.12` explicitly to ensure 3.12 is used even if other versions are installed):
 
    ```bash
-   python -m venv env
+   python3.12 -m venv env
    source env/bin/activate          # unix
-   env\Scripts\activate.bat         # Windows
+   source env/Scripts/activate      # Windows (Git Bash)
+   env\Scripts\activate.bat         # Windows (cmd.exe)
    ```
 
-3. Install dependencies:
+3. Install dependencies (once the env is activated, `pip` is the env's pip — use it normally):
 
    ```bash
    pip install -r requirements.txt
