@@ -26,6 +26,7 @@ Usage:
 
 import sys
 import os
+import re
 import csv
 import argparse
 from datetime import datetime
@@ -104,6 +105,86 @@ def _get_file_time(path: Path) -> datetime:
 
 
 # ---------------------------------------------------------------------------
+# Treatment auto-detection
+# ---------------------------------------------------------------------------
+
+def _getTreatments(file_paths: list[Path]) -> dict[str, str]:
+    """
+    Auto-resolve pre/post treatment labels ONLY for .qcamraw files and ignoring .tif files.
+
+    Priority (qcamraw only):
+        1. ZX-embedded qcam filenames (e.g. MK0002AAZX0008.qcamraw)
+        2. INJECTION_*_START_*.txt (e.g. INJECTION_ZX1_START_101.txt)
+        3. fallback: empty
+
+    Returns:
+        dict mapping imaging filename -> treatment string
+    """
+    if not file_paths:
+        return {}
+
+    exp_dir = file_paths[0].parent
+
+    # Priority 1 — check ZX-embedded qcam filenames indicating ZX1 injection treatment
+    ZX1fileNameRegex = r'[A-Z]{2}\d{4}(?=.*ZX)[A-Z]{4}\d{4}'
+    qcam_files = [p for p in file_paths if p.suffix.lower() == '.qcamraw']
+
+    if qcam_files and any(re.search(ZX1fileNameRegex, p.name) for p in qcam_files):
+        treatments = {}
+        for p in file_paths:
+            if p.suffix.lower() != '.qcamraw':
+                # Ignore .tif files
+                continue
+            if re.search(ZX1fileNameRegex, p.name):
+                treatments[p.name] = 'postZX1'
+            else:
+                treatments[p.name] = 'preZX1'
+
+        print('Auto-detected ZX1 treatment split from qcam filenames')
+        return treatments
+
+    # Priority 2 — auto-detect treatment from INJECTION_*_START_*.txt files
+    inj_files = list(exp_dir.glob('INJECTION_*_START_*'))
+    if len(inj_files) > 1:
+        inj_list = "\n".join(str(p.name) for p in inj_files)
+        raise RuntimeError(
+            f"Multiple injection files found:\n{inj_list}\n"
+            "Expected exactly one."
+        )
+    if len(inj_files) == 0:
+        return {}
+
+    inj_name = inj_files[0].name
+    match = re.search(r'INJECTION_([A-Z0-9]+)_START_(\d+)', inj_name)
+    if not match:
+        raise ValueError(f'Could not parse injection filename: {inj_name}')
+    drug = match.group(1)
+    start_num = int(match.group(2))
+
+    treatments = {}
+
+    for p in file_paths:
+        if p.suffix.lower() == '.qcamraw':
+            # Apply to .qcamraw files only
+            num_match = re.search(r'(\d{4})\.qcamraw$', p.name)
+            if num_match is None:
+                print(f"WARNING: could not parse qcam number from {p.name}")
+                continue
+            file_num = int(num_match.group(1))
+        else:
+            # No automatic treatment assignment for .tif files (different naming convention)
+            continue
+
+        if file_num >= start_num:
+            treatments[p.name] = f'post{drug}'
+        else:
+            treatments[p.name] = f'pre{drug}'
+
+    print(f'Auto-detected treatments from {inj_name}')
+    return treatments
+
+
+# ---------------------------------------------------------------------------
 # Matching
 # ---------------------------------------------------------------------------
 
@@ -135,6 +216,7 @@ def matchFilesToXSGs(exp_dir: str, pattern: str = '*.tif',
     print(f"Found {len(file_paths)} file(s) and {len(xsg_paths)} xsg(s)")
 
     print("Reading file timestamps...")
+    treatment_map = _getTreatments(file_paths)
     file_times = []
     for p in file_paths:
         try:
@@ -191,7 +273,7 @@ def matchFilesToXSGs(exp_dir: str, pattern: str = '*.tif',
                 'stimDelay': '',
                 'ISI':       '',
                 'xsg':       xsg_path.name,
-                'treatment': '',
+                'treatment': treatment_map.get(file_path.name, ''),
             })
 
     return rows

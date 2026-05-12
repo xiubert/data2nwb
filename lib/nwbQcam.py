@@ -6,6 +6,7 @@ Reuses the existing pulse-metadata fallback ladder unchanged.
 """
 import os
 import glob
+import re
 from uuid import uuid4
 
 import numpy as np
@@ -35,12 +36,16 @@ from lib.nwbScanImage import writeNWB  # reuse
 
 
 def _resolve_qcam_filelist(experimentDir, experimentID):
-    """Resolve .qcamraw file list and per-file treatment / type.
+    """
+    Resolve .qcamraw file list and per-file treatment / type.
 
     Priority:
-      1. {experimentID}_qcamFileList.csv  (columns: file, treatment, type)
-      2. glob of {experimentID}*.qcamraw, treatment='none', type='stim'
+        1. {experimentID}_qcamFileList.csv  (columns: file, treatment, type)
+        2. ZX-embedded qcam filenames indicating ZX1 injection treatment
+        3. INJECTION_*_START_*.txt auto-treatment detection
+        4. glob of {experimentID}*.qcamraw, treatment='none', type='stim'
     """
+    # Priority 1 — explicit qcam file list CSV
     listCSV = os.path.join(experimentDir, f'{experimentID}_qcamFileList.csv')
     if os.path.exists(listCSV):
         df = pd.read_csv(listCSV)
@@ -60,6 +65,54 @@ def _resolve_qcam_filelist(experimentDir, experimentID):
     if not files:
         raise FileNotFoundError(
             f'No .qcamraw files found in {experimentDir}')
+    
+    # Priority 2 — check ZX-embedded qcam filenames indicating ZX1 injection treatment
+    # Example: MK0002AAZX0008.qcamraw
+    ZX1fileNameRegex = r'[A-Z]{2}\d{4}(?=.*[ZX])[A-Z]{4}\d{4}'
+    if any(re.search(ZX1fileNameRegex, f) for f in files):
+        treatments = []
+        for f in files:
+            if re.search(ZX1fileNameRegex, f):
+                treatments.append('postZX1')
+            else:
+                treatments.append('preZX1')
+
+        print('Auto-detected ZX1 treatment split from qcam filenames')
+        return files, treatments, ['stim'] * len(files)
+    
+    # Priority 3 — auto-detect treatment from INJECTION_*_START_*.txt files
+    # Example: INJECTION_ZX1_START_101.txt
+    inj_files = glob.glob(os.path.join(experimentDir, 'INJECTION_*_START_*'))
+    if len(inj_files) > 1:
+        inj_list = "\n".join(inj_files)
+        raise RuntimeError(
+            f"Multiple injection files found in {experimentDir}:\n"
+            f"{inj_list}\n"
+            "Expected exactly 1 injection file to define treatment boundaries."
+        )
+    if len(inj_files) == 1:
+        inj_name = os.path.basename(inj_files[0])
+        match = re.search(r'INJECTION_([A-Z0-9]+)_START_(\d+)', inj_name)
+        if not match:
+            raise ValueError(f"Could not parse injection filename: {inj_name}")
+        drug = match.group(1)
+        start_num = int(match.group(2))
+        treatments = []
+        
+        for f in files:
+            qnum_match = re.search(r'(\d{4})\.qcamraw$', f)
+            if qnum_match is None:
+                raise ValueError(f'Could not parse qcam number from {f}')
+            qnum = int(qnum_match.group(1))
+            if qnum >= start_num:
+                treatments.append(f'post{drug}')
+            else:
+                treatments.append(f'pre{drug}')
+
+        print(f'Auto-detected treatment split from {inj_name}')
+        return files, treatments, ['stim'] * len(files)
+    
+    # Priority 4 — fallback
     return files, ['none'] * len(files), ['stim'] * len(files)
 
 
