@@ -92,6 +92,11 @@ def getMoCorrShiftParams(moCorrMatPath: str, nFrames: list[int] = None, concaten
         params: motion correction parameters
 
     """
+    print(f"Loading motion correction parameters from: {moCorrMatPath}")
+    if not os.path.isfile(moCorrMatPath):
+        raise FileNotFoundError(
+            f"Motion correction parameters file not found: {moCorrMatPath}"
+        )
     moCorrData = loadmat(moCorrMatPath)
 
     for i,cond in enumerate(moCorrData['NoRMCorreParams'].dtype.fields):
