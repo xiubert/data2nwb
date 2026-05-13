@@ -163,6 +163,11 @@ def getROImasks(roiMatPath: str) -> np.ndarray:
         masks = roiData['moCorROI'][0]['mask']
         IDs = np.concatenate(roiData['moCorROI'][0]['ID']).astype(int)
 
+    # scipy.io.loadmat returns object-dtype arrays for cell-array-like fields;
+    # stack into (nROIs, H, W) so downstream code can index/broadcast uniformly.
+    if masks.dtype == object:
+        masks = np.stack([np.asarray(m) for m in masks])
+
     return IDs, masks
 
 
