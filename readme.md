@@ -303,7 +303,9 @@ Read from the qcamraw header's `File_Init_Timestamp` field (QCapture format: `MM
 | Priority | Source | Notes |
 | --- | --- | --- |
 | 1 | `{experimentID}_qcamFileList.csv` | Columns: `file`, `treatment`, `type`. One row per `.qcamraw`. |
-| 2 | Glob of `{experimentID}*.qcamraw` | All files assigned `treatment='none'`, `type='stim'`. |
+| 2 | `*AAZX*.qcamraw` | Checks ZX-embedded qcam filenames indicating ZX1 injection treatment. |
+| 3 | `INJECTION_*_START_*.txt` | Auto-detects pre/post split from filename (e.g. `INJECTION_ZX1_START_101.txt`). |
+| 4 | Glob of `{experimentID}*.qcamraw` | All files assigned `treatment='none'`, `type='stim'`. |
 
 Example `{experimentID}_qcamFileList.csv`:
 
@@ -333,7 +335,7 @@ One ROI per treatment. The first `.qcamraw` of each treatment is used to resolve
 | --- | --- | --- |
 | 1 | `*_Pulses.mat` (one per `.qcamraw`) | Read directly via `lib.mat2py.getPulsesPerFile`. Triggers only when every `.qcamraw` has its own companion `_Pulses.mat`. Treatments are backfilled from the qcam file list. |
 | 2 | `pulseLegendQcam.mat` | Run `extra/qcamPulseLegend.m` — aggregates `*_Pulses.mat` into a single struct saved as `-v7.3`. |
-| 3 | `pulseLegendQcam.csv` | Run `extra/matchXSG.py --pattern "*.qcamraw"`, or create manually. `stimDelay` / `ISI` are blank when generated — fill manually. |
+| 3 | `pulseLegendQcam.csv` | Run `extra/matchXSG.py --pattern "*.qcamraw"`, or create manually. `stimDelay` / `ISI` are blank when generated — fill manually. `treatment` is auto-filled by ZX-embedded qcam filename or `INJECTION_*_START_*.txt`; otherwise left blank. |
 | 4 | *(none found)* | Inventory-only stim table (one row per `.qcamraw`, NaN for `stimDelay` / `ISI`, empty strings for `pulseName` / `pulseSet` / `xsg`). Structurally valid; passes nwbinspector. |
 
 See [Pulse legend format](#pulse-legend-format) for column definitions.
