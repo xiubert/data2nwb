@@ -88,8 +88,8 @@ def getMoCorrShiftParams(moCorrMatPath: str, nFrames: list[int] = None, concaten
         concatenate (bool): whether or not to return shifts in one concatenated array
 
     Returns:
-        allshifts (list): each element is shifts for associated .tif file
-        params: motion correction parameters
+        allshifts (list): each element is shifts for associated .tif file (or None if shifts data not present in .mat)
+        params: motion correction parameters (or None if not present in .mat)
 
     """
     print(f"Loading motion correction parameters from: {moCorrMatPath}")
@@ -99,19 +99,34 @@ def getMoCorrShiftParams(moCorrMatPath: str, nFrames: list[int] = None, concaten
         )
     moCorrData = loadmat(moCorrMatPath)
 
-    for i,cond in enumerate(moCorrData['NoRMCorreParams'].dtype.fields):
-        if i==0:
-            # unnest
-            shifts = np.stack(moCorrData['NoRMCorreParams'][cond][0][0]['shifts'][0][0]['shifts'].squeeze()).squeeze()
-        else:
-            shifts = np.append(shifts,np.stack(moCorrData['NoRMCorreParams'][cond][0][0]['shifts'][0][0]['shifts'].squeeze()).squeeze(),
-                            axis=0)
-            
-    params = moCorrData['NoRMCorreParams'][cond][0][0]['options_nonrigid'][0]
+    shifts = None
+    params = None
+    try:
+        for i, cond in enumerate(moCorrData['NoRMCorreParams'].dtype.fields):
+            condShifts = np.stack(
+                moCorrData['NoRMCorreParams'][cond][0][0]['shifts'][0][0]['shifts'].squeeze()
+            ).squeeze()
+            if i == 0:
+                shifts = condShifts
+            else:
+                shifts = np.append(shifts, condShifts, axis=0)
 
-    if concatenate==True:
+        params = moCorrData['NoRMCorreParams'][cond][0][0]['options_nonrigid'][0]
+    except (KeyError, ValueError, IndexError, AttributeError) as e:
+        print(
+            "WARNING: no shifts data found in motion correction params file "
+            f"({moCorrMatPath}): {e}\n"
+            "Expected NoRMCorreParams.<cond>.shifts written by the MATLAB call:\n"
+            "    [moCorrImgNonRigid.(moCorN{k}), NoRMCorreParams.(moCorN{k}).shifts, ...\n"
+            "        ~, NoRMCorreParams.(moCorN{k}).options_nonrigid] = ...\n"
+            "        normcorre_batch(rawCatImg.(moCorN{k}), options_nonrigid);\n"
+            "Continuing NWB build without motion correction shifts data."
+        )
+        return None, None
+
+    if concatenate == True:
         return shifts
-    
+
     cumframes = np.cumsum(nFrames)
     firstShift = cumframes-nFrames
     lastShift = cumframes-1

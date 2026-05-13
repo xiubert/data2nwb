@@ -257,44 +257,67 @@ def genNWBfromScanImage_pc(experimentID: str, dataPath: str, NWBoutputPath: str,
     ophys_module = nwbfile.create_processing_module(
         name="ophys", description="optical physiology processed data"
     )
-    motion_correction = MotionCorrection(name='Motion Corrected TwoPhotonSeries')
 
-    for i, (tif, shift) in enumerate(zip(tifFileList, shifts)):
-        imgData = lib.tifExtract.getSItifData(
-            os.path.join(experimentDir, motionCorrectedTifDir,
-                         tif.replace('.tif', '_NoRMCorre.tif')),
-            getMetadata=False)
+    if shifts is None:
+        # No shifts data — add corrected image stacks as plain ImageSeries
+        # (a CorrectedImageStack requires xy_translation, so it cannot be built).
+        for i, tif in enumerate(tifFileList):
+            imgData = lib.tifExtract.getSItifData(
+                os.path.join(experimentDir, motionCorrectedTifDir,
+                             tif.replace('.tif', '_NoRMCorre.tif')),
+                getMetadata=False)
 
-        corrected = ImageSeries(
-            name="corrected",  # this must be named "corrected"
-            description=f"A motion corrected image stack for acquisition {i:03}",
-            data=H5DataIO(data=imgData, compression=True),
-            unit="na",
-            format="raw",
-            comments=f"corrected file: {tif}",
-            rate=frameRates[i],
-            starting_time=starts[i],
-        )
+            corrected = ImageSeries(
+                name=f"corrected_TwoPhotonSeries_{i:03}",
+                description=f"A motion corrected image stack for acquisition {i:03} (xy_translation shifts unavailable)",
+                data=H5DataIO(data=imgData, compression=True),
+                unit="na",
+                format="raw",
+                comments=f"corrected file: {tif}",
+                rate=frameRates[i],
+                starting_time=starts[i],
+            )
+            ophys_module.add(corrected)
+        print("added motion-corrected image stacks (no shifts/MotionCorrection container)")
+    else:
+        motion_correction = MotionCorrection(name='Motion Corrected TwoPhotonSeries')
 
-        xy_translation = TimeSeries(
-            name="xy_translation",
-            description=f"x,y translation in pixels for acquisition {i:03}",
-            data=shift,
-            unit="pixels",
-            rate=frameRates[i],
-            starting_time=starts[i],
-            control_description=(moCorrParams if i == 0 else None),
-            comments=('control_description: NoRMCorreParams' if i == 0 else ''),
-        )
+        for i, (tif, shift) in enumerate(zip(tifFileList, shifts)):
+            imgData = lib.tifExtract.getSItifData(
+                os.path.join(experimentDir, motionCorrectedTifDir,
+                             tif.replace('.tif', '_NoRMCorre.tif')),
+                getMetadata=False)
 
-        motion_correction.add_corrected_image_stack(CorrectedImageStack(
-            corrected=corrected,
-            original=two_p_series[i],
-            xy_translation=xy_translation,
-            name=f"motion_corrected_TwoPhotonSeries_{i:03}"
-        ))
-    ophys_module.add(motion_correction)
-    print("added motion correction data")
+            corrected = ImageSeries(
+                name="corrected",  # this must be named "corrected"
+                description=f"A motion corrected image stack for acquisition {i:03}",
+                data=H5DataIO(data=imgData, compression=True),
+                unit="na",
+                format="raw",
+                comments=f"corrected file: {tif}",
+                rate=frameRates[i],
+                starting_time=starts[i],
+            )
+
+            xy_translation = TimeSeries(
+                name="xy_translation",
+                description=f"x,y translation in pixels for acquisition {i:03}",
+                data=shift,
+                unit="pixels",
+                rate=frameRates[i],
+                starting_time=starts[i],
+                control_description=(moCorrParams if i == 0 else None),
+                comments=('control_description: NoRMCorreParams' if i == 0 else ''),
+            )
+
+            motion_correction.add_corrected_image_stack(CorrectedImageStack(
+                corrected=corrected,
+                original=two_p_series[i],
+                xy_translation=xy_translation,
+                name=f"motion_corrected_TwoPhotonSeries_{i:03}"
+            ))
+        ophys_module.add(motion_correction)
+        print("added motion correction data")
 
     # ---- ROI segmentation + fluorescence container ----
     # Both ImageSegmentation and Fluorescence are attached to the ophys
